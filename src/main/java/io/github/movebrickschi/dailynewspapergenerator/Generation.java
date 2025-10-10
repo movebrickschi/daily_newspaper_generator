@@ -3,11 +3,16 @@ package io.github.movebrickschi.dailynewspapergenerator;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.vcs.log.VcsFullCommitDetails;
 import com.intellij.vcs.log.VcsLogCommitSelection;
 import com.intellij.vcs.log.VcsLogDataKeys;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import javax.swing.*;
+import java.awt.*;
 import java.util.List;
 
 public class Generation extends AnAction {
@@ -34,30 +39,61 @@ public class Generation extends AnAction {
         report.append("# 记录总结\n\n");
 
         for (VcsFullCommitDetails commit : cachedFullDetails) {
-            report.append("- ").append(commit.getFullMessage()).append("\n");
+            report.append("- ").append(commit.getFullMessage()).append("\n\n");
         }
 
         return report.toString();
     }
 
     public static void showReportInDialog(Project project, String report) {
-        String[] options = {"复制到剪贴板", "关闭"};
-        int result = Messages.showDialog(
-                project,
-                report,
-                "Daily Report",
-                options,
-                // 默认选中第一个按钮
-                0,
-                Messages.getInformationIcon()
-        );
-
-        // 如果用户点击了"复制到剪贴板"按钮
-        if (result == 0) {
-            copyToClipboard(project, report);
-        }
+        // 使用 DialogWrapper 创建可调整大小的对话框
+        DailyReportDialog dialog = new DailyReportDialog(project, report);
+        dialog.show();
     }
 
+    // 新增一个内部类来处理对话框
+    public static class DailyReportDialog extends DialogWrapper {
+        private final String reportContent;
+        private final Project project;  // 添加 project 成员变量
+
+        protected DailyReportDialog(@Nullable Project project, String report) {
+            super(project);
+            this.project = project;       // 初始化 project 成员变量
+            this.reportContent = report;
+            setTitle("Daily Report");
+            setModal(true);
+            init();
+        }
+
+        @Nullable
+        @Override
+        protected JComponent createCenterPanel() {
+            JTextArea textArea = new JTextArea(reportContent);
+            textArea.setEditable(false);
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+
+            JScrollPane scrollPane = new JScrollPane(textArea);
+            scrollPane.setPreferredSize(new Dimension(600, 400));
+            return scrollPane;
+        }
+
+        @Override
+        protected void doOKAction() {
+            copyToClipboard(project, reportContent);  // 使用成员变量 project
+            super.doOKAction();
+        }
+
+        @Override
+        protected Action @NotNull [] createActions() {
+            return new Action[]{getOKAction(), getCancelAction()};
+        }
+
+        @Override
+        public void doCancelAction() {
+            super.doCancelAction();
+        }
+    }
 
     public static void copyToClipboard(Project project, String text) {
         try {
