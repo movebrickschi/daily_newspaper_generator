@@ -1,0 +1,41 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.fighting.study.daily_newspaper_generator</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
+    <name>Daily_newspaper_generator</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor url="https://www.yourcompany.com">liuchunchi</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
+    <description><![CDATA[
+        Enter short description for your plugin here.<br>
+        <em>most HTML tags may be used</em>
+    ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+
+    </extensions>
+    <actions>
+        <action id="GenerateDailyReport" class="io.github.movebrickschi.dailynewspapergenerator.Generation"
+                text="生成日报" description="Generate daily report from selected commits">
+            <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt G"/>
+        </action>
+        <action id="GenerateDailyReportByAI" class="io.github.movebrickschi.dailynewspapergenerator.GenerationByAI"
+                text="生成日报-润色" description="Generate daily report from selected commits">
+            <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
+        </action>
+    </actions>
+</idea-plugin>
