@@ -35,9 +35,7 @@ public class GenerationByAI extends AnAction {
                 String polishedReport = ZhipuUtil.polish(finalDailyReport);
 
                 // 在EDT线程中显示结果
-                ApplicationManager.getApplication().invokeLater(() -> {
-                    Generation.showReportInDialog(project, polishedReport);
-                });
+                ApplicationManager.getApplication().invokeLater(() -> Generation.showReportInDialog(project, polishedReport));
             }
         });
     }

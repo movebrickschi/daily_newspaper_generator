@@ -28,12 +28,12 @@
     </extensions>
     <actions>
         <action id="GenerateDailyReport" class="io.github.movebrickschi.dailynewspapergenerator.Generation"
-                text="生成日报" description="Generate daily report from selected commits">
+                text="提取提交记录" description="Generate daily report from selected commits">
             <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt G"/>
         </action>
         <action id="GenerateDailyReportByAI" class="io.github.movebrickschi.dailynewspapergenerator.GenerationByAI"
-                text="生成日报-润色" description="Generate daily report from selected commits">
+                text="生成日报" description="Generate daily report from selected commits">
             <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
         </action>

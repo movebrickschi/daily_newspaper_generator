@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * ZhipuUtil
@@ -13,6 +14,10 @@ import java.util.Arrays;
  * @author Liu Chunchi
  */
 public final class ZhipuUtil {
+
+    private ZhipuUtil() {
+    }
+
     private static final Logger log = LoggerFactory.getLogger(ZhipuUtil.class);
 
     /**
@@ -29,7 +34,7 @@ public final class ZhipuUtil {
 
         ChatCompletionCreateParams request = ChatCompletionCreateParams.builder()
                 .model("glm-4.5v")
-                .messages(Arrays.asList(
+                .messages(Collections.singletonList(
                         ChatMessage.builder()
                                 .role(ChatMessageRole.USER.value())
                                 .content(Arrays.asList(
@@ -45,10 +50,8 @@ public final class ZhipuUtil {
                 .build();
 
         ChatCompletionResponse response = client.chat().createChatCompletion(request);
-
         if (response.isSuccess()) {
-            Object reply = response.getData().getChoices().get(0).getMessage();
-            return reply.toString();
+            return response.getData().getChoices().getFirst().getMessage().getContent().toString();
         } else {
             log.error("错误: {}", response.getMsg());
         }
