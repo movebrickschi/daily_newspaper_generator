@@ -5,21 +5,23 @@
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
-    <name>Daily_newspaper_generator</name>
+    <name>Daily Newspaper Generator</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.yourcompany.com">liuchunchi</vendor>
+    <vendor>Liu Chun Chi</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
-        Enter short description for your plugin here.<br>
-        <em>most HTML tags may be used</em>
+       One-click parsing of Git commit records, intelligent generation of structured daily reports, support for commit classification and workload statistics, saving manual organization time and improving team reporting efficiency!<br>
     ]]></description>
 
+    <idea-version since-build="201.7223"/>
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.java-capable</depends>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
@@ -27,15 +29,26 @@
 
     </extensions>
     <actions>
-        <action id="GenerateDailyReport" class="io.github.movebrickschi.dailynewspapergenerator.Generation"
-                text="提取提交记录" description="Generate daily report from selected commits">
+        <!-- 创建一个主菜单组 -->
+        <group id="DailyReportGroup" text="日报生成器" description="日报生成相关功能" popup="true"
+               icon="/META-INF/logo.png">
             <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt G"/>
-        </action>
-        <action id="GenerateDailyReportByAI" class="io.github.movebrickschi.dailynewspapergenerator.GenerationByAI"
-                text="生成日报" description="Generate daily report from selected commits">
-            <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
-        </action>
+
+            <!-- 子功能1：提取提交记录 -->
+            <action id="GenerateDailyReport"
+                    class="io.github.movebrickschi.dailynewspapergenerator.Generation"
+                    text="提取提交记录"
+                    description="从选中的提交记录生成日报">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt G"/>
+            </action>
+
+            <!-- 子功能2：生成日报（AI润色） -->
+            <action id="GenerateDailyReportByAI"
+                    class="io.github.movebrickschi.dailynewspapergenerator.GenerationByAI"
+                    text="AI润色"
+                    description="生成并AI润色日报">
+                <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
+            </action>
+        </group>
     </actions>
 </idea-plugin>
