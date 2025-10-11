@@ -51,7 +51,7 @@ public final class ZhipuUtil {
     public static String polish(String content) {
         try {
             ZhipuAiClient client = getClient();
-
+            log.info("正在向ZhipuAi请求润色");
             ChatCompletionCreateParams request = ChatCompletionCreateParams.builder()
                     .model("glm-4.5v")
                     .messages(Collections.singletonList(
