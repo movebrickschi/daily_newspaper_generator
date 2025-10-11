@@ -1,5 +1,8 @@
 package io.github.movebrickschi.dailynewspapergenerator;
 
+import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationType;
+import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
@@ -18,20 +21,29 @@ public class GenerationByAI extends AnAction {
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "正在生成日报内容...", true) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
+                try {
                 indicator.setText("正在使用AI润色内容，请稍候...");
                 indicator.setIndeterminate(true);
-
-
                 // 生成日报内容
                 String dailyReport = Generation.getSelectedCommits(e);
-
-                dailyReport = ZhipuUtil.polish(dailyReport);
-
                 // 使用 ProgressManager 在后台线程执行耗时操作
                 String polishedReport = ZhipuUtil.polish(dailyReport);
 
                 ApplicationManager.getApplication().invokeLater(() ->
                         Generation.showReportInDialog(project, polishedReport));
+                } catch (Exception ex) {
+                    // 异常处理，避免插件卡死
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        // 显示错误提示
+                        Notification notification = new Notification(
+                                "DailyReportGroup",
+                                "日报生成失败",
+                                "AI润色过程中出现错误: " + ex.getMessage(),
+                                NotificationType.ERROR
+                        );
+                        Notifications.Bus.notify(notification, project);
+                    });
+                }
             }
         });
     }

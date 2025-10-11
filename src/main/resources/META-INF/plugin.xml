@@ -16,11 +16,9 @@
        One-click parsing of Git commit records, intelligent generation of structured daily reports, support for commit classification and workload statistics, saving manual organization time and improving team reporting efficiency!<br>
     ]]></description>
 
-    <idea-version since-build="201.7223"/>
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
-    <depends>com.intellij.modules.lang</depends>
     <depends>com.intellij.modules.java-capable</depends>
 
     <!-- Extension points defined by the plugin.
