@@ -15,27 +15,23 @@ public class GenerationByAI extends AnAction {
     public void actionPerformed(AnActionEvent e) {
         Project project = e.getProject();
         if (project == null) return;
-
-
-        // 生成日报内容
-        String dailyReport = Generation.getSelectedCommits(e);
-
-        dailyReport = ZhipuUtil.polish(dailyReport);
-
-        // 使用 ProgressManager 在后台线程执行耗时操作
-        String finalDailyReport = dailyReport;
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, "正在生成日报内容...") {
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, "正在生成日报内容...", true) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
-                // 设置进度指示器文本
                 indicator.setText("正在使用AI润色内容，请稍候...");
-                indicator.setIndeterminate(true); // 设置为不确定进度模式
+                indicator.setIndeterminate(true);
 
-                // 执行耗时的润色操作
-                String polishedReport = ZhipuUtil.polish(finalDailyReport);
 
-                // 在EDT线程中显示结果
-                ApplicationManager.getApplication().invokeLater(() -> Generation.showReportInDialog(project, polishedReport));
+                // 生成日报内容
+                String dailyReport = Generation.getSelectedCommits(e);
+
+                dailyReport = ZhipuUtil.polish(dailyReport);
+
+                // 使用 ProgressManager 在后台线程执行耗时操作
+                String polishedReport = ZhipuUtil.polish(dailyReport);
+
+                ApplicationManager.getApplication().invokeLater(() ->
+                        Generation.showReportInDialog(project, polishedReport));
             }
         });
     }
