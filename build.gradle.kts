@@ -37,10 +37,11 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
+        // 设置插件的兼容版本,开始版本
         ideaVersion {
             sinceBuild = "242"
         }
-
+        // 设置插件的变更说明
         changeNotes = """
             Initial version
         """.trimIndent()
@@ -48,7 +49,7 @@ intellijPlatform {
 }
 
 tasks {
-    // Set the JVM compatibility versions
+    // 设置 JVM 兼容性版本
     withType<JavaCompile> {
         sourceCompatibility = "21"
         targetCompatibility = "21"
