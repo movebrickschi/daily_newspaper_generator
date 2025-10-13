@@ -46,6 +46,14 @@
                     description="生成并AI润色日报">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
             </action>
+
+            <!-- 子功能3：生成今日日报 -->
+            <action id="GetTodaysCommits"
+                    class="io.github.movebrickschi.dailynewspapergenerator.GetTodaysCommitsAction"
+                    text="生成今日日报"
+                    description="获取当前用户今天的Git提交记录">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt T"/>
+            </action>
         </group>
     </actions>
 </idea-plugin>
