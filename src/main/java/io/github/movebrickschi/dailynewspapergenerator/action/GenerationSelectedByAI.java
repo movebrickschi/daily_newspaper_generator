@@ -1,4 +1,4 @@
-package io.github.movebrickschi.dailynewspapergenerator;
+package io.github.movebrickschi.dailynewspapergenerator.action;
 
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
@@ -10,6 +10,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import io.github.movebrickschi.dailynewspapergenerator.utils.ZhipuUtil;
 import org.jetbrains.annotations.NotNull;
 
 /**

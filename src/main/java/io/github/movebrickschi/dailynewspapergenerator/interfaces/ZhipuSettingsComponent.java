@@ -48,7 +48,7 @@ public class ZhipuSettingsComponent {
             myResetButton.addActionListener(e -> resetToDefaults());
 
             myMainPanel = FormBuilder.createFormBuilder()
-                    .addLabeledComponent(new JBLabel("API Key:"), myApiKeyText, 1, false)
+                    .addLabeledComponent(new JBLabel("API Key（智谱）:"), myApiKeyText, 1, false)
                     .addLabeledComponent(new JBLabel("提示词模板:"), scrollPane, 1, false)
                     .addLabeledComponent(new JBLabel(""), myResetButton, 1, false) // 添加重置按钮
                     .addComponentFillVertically(new JPanel(), 0)

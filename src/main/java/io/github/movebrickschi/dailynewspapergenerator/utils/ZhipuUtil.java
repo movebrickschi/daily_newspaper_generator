@@ -1,4 +1,4 @@
-package io.github.movebrickschi.dailynewspapergenerator;
+package io.github.movebrickschi.dailynewspapergenerator.utils;
 
 import ai.z.openapi.ZhipuAiClient;
 import ai.z.openapi.service.model.*;

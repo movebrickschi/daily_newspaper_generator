@@ -1,4 +1,4 @@
-package io.github.movebrickschi.dailynewspapergenerator;
+package io.github.movebrickschi.dailynewspapergenerator.action;
 
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
@@ -11,13 +11,14 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import io.github.movebrickschi.dailynewspapergenerator.utils.ZhipuUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 
-public class GetTodaysCommitsAction extends AnAction {
+public class GenerationTodayCommitsByAIAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         Project project = e.getProject();

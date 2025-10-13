@@ -36,24 +36,32 @@
             <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
 
             <!-- 子功能1：提取提交记录 -->
-            <action id="GenerateDailyReport"
-                    class="io.github.movebrickschi.dailynewspapergenerator.ExtractSelectedAction"
-                    text="提取提交记录"
-                    description="从选中的提交记录生成日报">
+            <action id="ExtractSelected"
+                    class="io.github.movebrickschi.dailynewspapergenerator.action.ExtractSelectedAction"
+                    text="提取选中分支提交记录"
+                    description="提取选中的提交记录">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt G"/>
             </action>
 
-            <!-- 子功能2：生成日报（AI润色） -->
-            <action id="GenerateDailyReportByAI"
-                    class="io.github.movebrickschi.dailynewspapergenerator.GenerationSelectedByAI"
-                    text="AI润色"
+            <!-- 子功能2：提取今日提交记录 -->
+            <action id="ExtractTodayCommits"
+                    class="io.github.movebrickschi.dailynewspapergenerator.action.ExtractTodayCommitsAction"
+                    text="今日提交记录"
+                    description="提取今日提交记录">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt f"/>
+            </action>
+
+            <!-- 子功能3：生成日报（AI润色） -->
+            <action id="GenerationSelected"
+                    class="io.github.movebrickschi.dailynewspapergenerator.action.GenerationSelectedByAI"
+                    text="AI润色选中分支"
                     description="生成并AI润色日报">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
             </action>
 
-            <!-- 子功能3：生成今日日报 -->
-            <action id="GetTodaysCommits"
-                    class="io.github.movebrickschi.dailynewspapergenerator.GetTodaysCommitsAction"
+            <!-- 子功能4：生成今日日报 -->
+            <action id="GenerationTodayCommits"
+                    class="io.github.movebrickschi.dailynewspapergenerator.action.GenerationTodayCommitsByAIAction"
                     text="生成今日日报"
                     description="获取当前用户今天的Git提交记录">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt T"/>

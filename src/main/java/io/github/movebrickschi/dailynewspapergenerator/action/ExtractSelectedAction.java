@@ -1,4 +1,4 @@
-package io.github.movebrickschi.dailynewspapergenerator;
+package io.github.movebrickschi.dailynewspapergenerator.action;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -41,7 +41,7 @@ public class ExtractSelectedAction extends AnAction {
         List<VcsFullCommitDetails> cachedFullDetails = selection.getCachedFullDetails();
 
         StringBuilder report = new StringBuilder();
-        report.append("# 记录总结\n\n");
+        report.append("# 记录列表\n\n");
 
         for (VcsFullCommitDetails commit : cachedFullDetails) {
             report.append("- ").append(commit.getFullMessage()).append("\n\n");
