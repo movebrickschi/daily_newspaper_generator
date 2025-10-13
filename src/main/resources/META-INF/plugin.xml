@@ -37,7 +37,7 @@
 
             <!-- 子功能1：提取提交记录 -->
             <action id="GenerateDailyReport"
-                    class="io.github.movebrickschi.dailynewspapergenerator.Generation"
+                    class="io.github.movebrickschi.dailynewspapergenerator.ExtractSelectedAction"
                     text="提取提交记录"
                     description="从选中的提交记录生成日报">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt G"/>
@@ -45,7 +45,7 @@
 
             <!-- 子功能2：生成日报（AI润色） -->
             <action id="GenerateDailyReportByAI"
-                    class="io.github.movebrickschi.dailynewspapergenerator.GenerationByAI"
+                    class="io.github.movebrickschi.dailynewspapergenerator.GenerationSelectedByAI"
                     text="AI润色"
                     description="生成并AI润色日报">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>

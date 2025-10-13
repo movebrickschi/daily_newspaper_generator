@@ -34,7 +34,7 @@ public class GetTodaysCommitsAction extends AnAction {
                     String polishedReport = ZhipuUtil.polish(todaysCommits);
 
                     ApplicationManager.getApplication().invokeLater(() ->
-                            Generation.showReportInDialog(project, polishedReport));
+                            ExtractSelectedAction.showReportInDialog(project, polishedReport));
                 } catch (Exception ex) {
                     // 异常处理，避免插件卡死
                     ApplicationManager.getApplication().invokeLater(() -> {

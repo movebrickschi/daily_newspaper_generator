@@ -13,6 +13,8 @@ import java.awt.*;
 
 /**
  * 设置界面
+ *
+ * @author Liu Chunchi
  */
 public class ZhipuSettingsComponent {
     private final JPanel myMainPanel;

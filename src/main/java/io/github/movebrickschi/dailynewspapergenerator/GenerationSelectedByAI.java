@@ -12,7 +12,12 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
-public class GenerationByAI extends AnAction {
+/**
+ * 润色选中分支的提交记录
+ *
+ * @author Liu Chunchi
+ */
+public class GenerationSelectedByAI extends AnAction {
 
     @Override
     public void actionPerformed(AnActionEvent e) {
@@ -25,12 +30,12 @@ public class GenerationByAI extends AnAction {
                 indicator.setText("正在使用AI润色内容，请稍候...");
                 indicator.setIndeterminate(true);
                 // 生成日报内容
-                String dailyReport = Generation.getSelectedCommits(e);
+                    String dailyReport = ExtractSelectedAction.getSelectedCommits(e);
                 // 使用 ProgressManager 在后台线程执行耗时操作
                 String polishedReport = ZhipuUtil.polish(dailyReport);
 
                 ApplicationManager.getApplication().invokeLater(() ->
-                        Generation.showReportInDialog(project, polishedReport));
+                        ExtractSelectedAction.showReportInDialog(project, polishedReport));
                 } catch (Exception ex) {
                     // 异常处理，避免插件卡死
                     ApplicationManager.getApplication().invokeLater(() -> {

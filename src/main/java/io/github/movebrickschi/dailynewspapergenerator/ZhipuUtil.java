@@ -10,7 +10,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 /**
- * ZhipuUtil
+ * 智谱工具类
  *
  * @author Liu Chunchi
  */

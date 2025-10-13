@@ -10,6 +10,11 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
+/**
+ * 设置配置
+ *
+ * @author Liu Chunchi
+ */
 public class ZhipuSettingsConfigurable implements Configurable {
     private ZhipuSettingsComponent mySettingsComponent;
 

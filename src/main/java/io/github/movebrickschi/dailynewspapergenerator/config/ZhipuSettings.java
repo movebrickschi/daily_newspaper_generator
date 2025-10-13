@@ -8,6 +8,11 @@ import com.intellij.util.xmlb.XmlSerializerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * 配置属性
+ *
+ * @author Liu Chunchi
+ */
 @State(
     name = "ZhipuSettings",
     storages = @Storage("zhipu-settings.xml")

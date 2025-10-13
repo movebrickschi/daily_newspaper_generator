@@ -15,7 +15,12 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.List;
 
-public class Generation extends AnAction {
+/**
+ * 提取选中分支的提交记录
+ *
+ * @author Liu Chunchi
+ */
+public class ExtractSelectedAction extends AnAction {
 
     @Override
     public void actionPerformed(AnActionEvent e) {
