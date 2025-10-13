@@ -32,15 +32,16 @@ public class ZhipuSettingsComponent {
             // 配置提示词文本区域
             myPromptTemplateText.setLineWrap(true);
             myPromptTemplateText.setWrapStyleWord(true);
-            myPromptTemplateText.setBorder(myApiKeyText.getBorder());
+//            myPromptTemplateText.setBorder(myApiKeyText.getBorder());
 
             // 启用手动调整大小
-            myPromptTemplateText.setPreferredSize(new Dimension(400, 120));
-            myPromptTemplateText.setMinimumSize(new Dimension(200, 60));
+//            myPromptTemplateText.setPreferredSize(new Dimension(400, 120));
+//            myPromptTemplateText.setMinimumSize(new Dimension(200, 60));
 
             // 创建可滚动面板
             JScrollPane scrollPane = new JBScrollPane(myPromptTemplateText);
             scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+            scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
             scrollPane.setPreferredSize(new Dimension(400, 120));
             scrollPane.setMinimumSize(new Dimension(200, 60));
 
