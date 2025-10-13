@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.fighting.study"
-version = "1.1"
+version = "1.2"
 
 repositories {
     mavenCentral()
@@ -43,7 +43,7 @@ intellijPlatform {
         }
         // 设置插件的变更说明
         changeNotes = """
-            Initial version
+            ### Optimized the prompt configuration text box to add a scroll bar
         """.trimIndent()
     }
 }
