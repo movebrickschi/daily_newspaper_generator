@@ -2,6 +2,7 @@ package io.github.movebrickschi.dailynewspapergenerator;
 
 import ai.z.openapi.ZhipuAiClient;
 import ai.z.openapi.service.model.*;
+import io.github.movebrickschi.dailynewspapergenerator.config.ZhipuSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,8 +50,14 @@ public final class ZhipuUtil {
      * @return 润色后的文本
      */
     public static String polish(String content) {
+        ZhipuSettings settings = ZhipuSettings.getInstance();
+        String apiKey = settings.apiKey;
+        String promptTemplate = settings.promptTemplate;
+
+        ZhipuAiClient client = ZhipuAiClient.builder()
+                .apiKey(apiKey)
+                .build();
         try {
-            ZhipuAiClient client = getClient();
             log.info("正在向ZhipuAi请求润色");
             ChatCompletionCreateParams request = ChatCompletionCreateParams.builder()
                     .model("glm-4.5v")
@@ -60,7 +67,7 @@ public final class ZhipuUtil {
                                     .content(Arrays.asList(
                                             MessageContent.builder()
                                                     .type("text")
-                                                    .text("请将以下Git提交信息润色成更专业的日报格式，保持简洁明了")
+                                                    .text(promptTemplate)
                                                     .build(),
                                             MessageContent.builder()
                                                     .type("text")

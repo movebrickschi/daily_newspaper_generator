@@ -23,7 +23,11 @@
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-
+        <applicationService serviceImplementation="io.github.movebrickschi.dailynewspapergenerator.config.ZhipuSettings"/>
+        <applicationConfigurable parentId="tools"
+                                 instance="io.github.movebrickschi.dailynewspapergenerator.ZhipuSettingsConfigurable"
+                                 id="io.github.movebrickschi.dailynewspapergenerator.ZhipuSettingsConfigurable"
+                                 displayName="日报生成器设置"/>
     </extensions>
     <actions>
         <!-- 创建一个主菜单组 -->
