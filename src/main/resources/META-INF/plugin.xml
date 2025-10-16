@@ -8,15 +8,15 @@
     <name>Daily Newspaper Generator</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor>Liu Chun Chi</vendor>
+    <vendor>LiuChunChi</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
-       <h2>English：</h2>
+       <h2>English</h2>
         <p>One-click parsing of Git commit records, intelligent generation of structured daily reports, support for commit classification and workload statistics, saving manual organization time and improving team reporting efficiency!</p>
 
-        <h2>中文：</h2>
+        <h2>中文</h2>
         <p>一键解析 Git 提交记录，智能生成结构化日报，支持提交分类和工作量统计，节省手动整理时间，提升团队汇报效率！</p>
     ]]></description>
 
