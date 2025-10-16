@@ -30,7 +30,7 @@ public class GenerationTodayCommitsByAIAction extends AnAction {
                     indicator.setText("正在生成今日日报，请稍候...");
                     indicator.setIndeterminate(true);
                     // 获取今天的提交记录
-                    String todaysCommits = getTodaysCommits(project);
+                    String todaysCommits = ExtractTodayCommitsAction.getTodaysCommits(project);
                     // 使用 ProgressManager 在后台线程执行耗时操作
                     String polishedReport = ZhipuUtil.polish(todaysCommits);
 
@@ -53,76 +53,4 @@ public class GenerationTodayCommitsByAIAction extends AnAction {
         });
     }
 
-    private String getTodaysCommits(Project project) {
-        try {
-            String projectPath = project.getBasePath();
-            if (projectPath == null) {
-                throw new RuntimeException("无法获取项目路径");
-            }
-
-            // 先获取当前用户的 Git 用户名
-            String gitUserName = getGitUserName(projectPath);
-
-            ProcessBuilder processBuilder = new ProcessBuilder();
-            // 使用获取到的实际用户名而不是 shell 命令替换
-            processBuilder.command("git", "log", "--since=00:00:00",
-                    "--author=" + gitUserName,
-                    "--pretty=format:%s", "--date=short");
-            processBuilder.directory(new File(projectPath));
-
-            Process process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            StringBuilder result = new StringBuilder();
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                result.append(line).append("\n");
-            }
-
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-                StringBuilder errorResult = new StringBuilder();
-                while ((line = errorReader.readLine()) != null) {
-                    errorResult.append(line).append("\n");
-                }
-                throw new RuntimeException("Git命令执行失败: " + errorResult.toString());
-            }
-
-            if (result.length() == 0) {
-                return "今天没有提交记录";
-            }
-
-            return result.toString();
-        } catch (Exception e) {
-            throw new RuntimeException("获取提交记录失败: " + e.getMessage(), e);
-        }
-    }
-
-    private String getGitUserName(String projectPath) throws Exception {
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command("git", "config", "user.name");
-        processBuilder.directory(new File(projectPath));
-
-        Process process = processBuilder.start();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String userName = reader.readLine();
-
-        int exitCode = process.waitFor();
-        if (exitCode != 0 || userName == null || userName.trim().isEmpty()) {
-            // 如果无法获取用户名，使用通配符匹配所有提交
-            return ".*";
-        }
-
-        return userName.trim();
-    }
-
-    private void showCommitsInDialog(Project project, String commits) {
-        Messages.showMessageDialog(
-                project,
-                commits,
-                "今日提交记录",
-                Messages.getInformationIcon()
-        );
-    }
 }

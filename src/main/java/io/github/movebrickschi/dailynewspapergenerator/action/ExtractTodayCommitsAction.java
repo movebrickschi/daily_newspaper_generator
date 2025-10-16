@@ -54,7 +54,7 @@ public class ExtractTodayCommitsAction extends AnAction {
         });
     }
 
-    private String getTodaysCommits(Project project) {
+    public static String getTodaysCommits(Project project) {
         try {
             String projectPath = project.getBasePath();
             if (projectPath == null) {
@@ -68,7 +68,7 @@ public class ExtractTodayCommitsAction extends AnAction {
             // 使用获取到的实际用户名而不是 shell 命令替换
             processBuilder.command("git", "log", "--since=00:00:00",
                     "--author=" + gitUserName,
-                    "--pretty=format:%s", "--date=short");
+                    "--pretty=format:%B", "--date=short");
             processBuilder.directory(new File(projectPath));
 
             Process process = processBuilder.start();
@@ -103,7 +103,7 @@ public class ExtractTodayCommitsAction extends AnAction {
         }
     }
 
-    private String getGitUserName(String projectPath) throws Exception {
+    public static String getGitUserName(String projectPath) throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command("git", "config", "user.name");
         processBuilder.directory(new File(projectPath));
