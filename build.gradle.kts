@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.fighting.study"
-version = "1.2"
+version = "1.2.1"
 
 repositories {
     mavenCentral()
@@ -20,7 +20,7 @@ repositories {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {
-        create("IC", "2025.1.4.1")
+        create("IC", "2025.2.2")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         // Add necessary plugin dependencies for compilation here, example:
@@ -43,7 +43,15 @@ intellijPlatform {
         }
         // 设置插件的变更说明
         changeNotes = """
-            ### Optimized the prompt configuration text box to add a scroll bar
+            English:
+            <ul>
+                <li>Fixed an issue where today's commit record was incomplete</li>
+            </ul>
+            
+            中文:
+            <ul>
+                <li>修复今日提交记录获取不完整问题</li>
+            </ul>
         """.trimIndent()
     }
 }
