@@ -7,6 +7,8 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
+import io.github.movebrickschi.dailynewspapergenerator.ui.ExtractRangeDialog;
 import io.github.movebrickschi.dailynewspapergenerator.ui.ReportDialogV2;
 import io.github.movebrickschi.dailynewspapergenerator.utils.ExtractOptions;
 import io.github.movebrickschi.dailynewspapergenerator.utils.GitCommitExtractor;
@@ -14,40 +16,43 @@ import io.github.movebrickschi.dailynewspapergenerator.utils.NotifyUtil;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * 提取当天当前用户的所有提交记录。
+ * 弹出 {@link ExtractRangeDialog} 让用户选择日期范围 / 作者 / 过滤项，然后执行抽取并展示。
  *
  * @author Liu Chunchi
  */
-public class ExtractTodayCommitsAction extends AnAction {
+public class ExtractByRangeAction extends AnAction {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         Project project = e.getProject();
-        if (project == null) return;
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, "正在提取今日提交...", true) {
+        if (project == null) {
+            return;
+        }
+        ExtractRangeDialog dialog = new ExtractRangeDialog(project);
+        if (!dialog.showAndGet()) {
+            return;
+        }
+        ExtractOptions options = dialog.toOptions();
+        if (options == null) {
+            Messages.showWarningDialog(project,
+                    "自定义日期格式不正确，请使用 yyyy-MM-dd",
+                    "日报生成器");
+            return;
+        }
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, "正在抽取提交记录...", true) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 try {
-                    indicator.setText("正在抽取，请稍候...");
                     indicator.setIndeterminate(true);
-                    String md = getTodaysCommits(project);
+                    GitCommitExtractor.Result result = GitCommitExtractor.extract(project, options);
                     ApplicationManager.getApplication().invokeLater(() ->
-                            ReportDialogV2.show(project, "今日提交记录", md));
+                            ReportDialogV2.show(project, "提交记录", result.markdown()));
                 } catch (Exception ex) {
                     ApplicationManager.getApplication().invokeLater(() ->
-                            NotifyUtil.error(project, "提取失败",
-                                    "提取过程中出现错误: " + ex.getMessage()));
+                            NotifyUtil.error(project, "抽取失败",
+                                    "抽取过程中出现错误: " + ex.getMessage()));
                 }
             }
         });
-    }
-
-    /**
-     * 给 {@link GenerationTodayCommitsByAIAction} 用的便捷方法：
-     * 直接以「今天 + 当前用户 + 默认过滤」为参数走 {@link GitCommitExtractor}。
-     */
-    public static String getTodaysCommits(Project project) {
-        ExtractOptions opt = ExtractOptions.today();
-        return GitCommitExtractor.extract(project, opt).markdown();
     }
 }

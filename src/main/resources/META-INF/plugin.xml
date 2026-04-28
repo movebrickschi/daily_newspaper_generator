@@ -1,17 +1,11 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
     <id>com.fighting.study.daily_newspaper_generator</id>
 
-    <!-- Public plugin name should be written in Title Case.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
     <name>Daily Newspaper Generator</name>
 
-    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor>LiuChunChi</vendor>
 
-    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
        <h2>English</h2>
         <p>One-click parsing of Git commit records, intelligent generation of structured daily reports, support for commit classification and workload statistics, saving manual organization time and improving team reporting efficiency!</p>
@@ -20,54 +14,61 @@
         <p>一键解析 Git 提交记录，智能生成结构化日报，支持提交分类和工作量统计，节省手动整理时间，提升团队汇报效率！</p>
     ]]></description>
 
-    <!-- Product and plugin compatibility requirements.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
 
-    <!-- Extension points defined by the plugin.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <resource-bundle>messages.DailyReportBundle</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="io.github.movebrickschi.dailynewspapergenerator.config.ZhipuSettings"/>
+        <applicationService serviceImplementation="io.github.movebrickschi.dailynewspapergenerator.config.LlmSettings"/>
         <applicationConfigurable parentId="tools"
-                                 instance="io.github.movebrickschi.dailynewspapergenerator.ZhipuSettingsConfigurable"
-                                 id="io.github.movebrickschi.dailynewspapergenerator.ZhipuSettingsConfigurable"
+                                 instance="io.github.movebrickschi.dailynewspapergenerator.config.LlmSettingsConfigurable"
+                                 id="io.github.movebrickschi.dailynewspapergenerator.LlmSettingsConfigurable"
                                  displayName="日报生成器设置"/>
+        <notificationGroup id="DailyReportGroup" displayType="BALLOON"/>
     </extensions>
     <actions>
-        <!-- 创建一个主菜单组 -->
         <group id="DailyReportGroup" text="日报生成器" description="日报生成相关功能" popup="true"
                icon="/META-INF/logo.png">
             <add-to-group group-id="Vcs.Log.ContextMenu" anchor="last"/>
 
-            <!-- 子功能1：提取提交记录 -->
             <action id="ExtractSelected"
                     class="io.github.movebrickschi.dailynewspapergenerator.action.ExtractSelectedAction"
                     text="提取选中分支提交记录"
                     description="提取选中的提交记录">
+                <override-text place="MainMenu" text="提取选中分支提交记录 (Ctrl+Alt+G)"/>
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt G"/>
             </action>
 
-            <!-- 子功能2：提取今日提交记录 -->
             <action id="ExtractTodayCommits"
                     class="io.github.movebrickschi.dailynewspapergenerator.action.ExtractTodayCommitsAction"
                     text="今日提交记录"
                     description="提取今日提交记录">
-                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt f"/>
+                <override-text place="MainMenu" text="今日提交记录 (Ctrl+Alt+F)"/>
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt F"/>
             </action>
 
-            <!-- 子功能3：生成日报（AI润色） -->
+            <action id="ExtractByRange"
+                    class="io.github.movebrickschi.dailynewspapergenerator.action.ExtractByRangeAction"
+                    text="按范围提取提交…"
+                    description="自定义日期/作者/过滤条件提取提交记录">
+                <override-text place="MainMenu" text="按范围提取提交… (Ctrl+Alt+B)"/>
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt B"/>
+            </action>
+
             <action id="GenerationSelected"
                     class="io.github.movebrickschi.dailynewspapergenerator.action.GenerationSelectedByAI"
                     text="AI润色选中分支"
                     description="生成并AI润色日报">
+                <override-text place="MainMenu" text="AI润色选中分支 (Alt+R)"/>
                 <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
             </action>
 
-            <!-- 子功能4：生成今日日报 -->
             <action id="GenerationTodayCommits"
                     class="io.github.movebrickschi.dailynewspapergenerator.action.GenerationTodayCommitsByAIAction"
                     text="生成今日日报"
                     description="获取当前用户今天的Git提交记录">
+                <override-text place="MainMenu" text="生成今日日报 (Ctrl+Alt+T)"/>
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt T"/>
             </action>
         </group>
