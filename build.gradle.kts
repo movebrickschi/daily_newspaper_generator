@@ -103,18 +103,9 @@ intellijPlatform {
                 <li><b>菜单优化</b>：菜单项后附快捷键展示；错误通知自带「打开设置」与重试入口</li>
             </ul>
 
-            <h3>1.3.0</h3>
-            English:
-            <ul>
-                <li>Support any OpenAI-compatible LLM provider (Zhipu / DeepSeek / Qwen / Kimi / OpenAI / Ollama ...) by configuring Base URL, API Key and Model</li>
-                <li>Today's commits now aggregate across all Git repositories registered under the IDEA project, grouped by repository and current branch</li>
-            </ul>
-
-            中文:
-            <ul>
-                <li>支持任意兼容 OpenAI 协议的大模型厂商（智谱 / DeepSeek / 通义千问 / Kimi / OpenAI / Ollama 等），在设置中配置 Base URL、API Key、Model 即可切换</li>
-                <li>「今日提交记录 / 生成今日日报」支持 IDEA 项目下挂载的多个 Git 仓库，默认聚合所有仓库并按「仓库 → 当前分支」两级分组输出</li>
-            </ul>
+            <p style="margin-top:12px;font-size:11px;color:#888;">
+                Older release notes (1.3.0 and earlier) are available in the project's CHANGELOG.md.
+            </p>
         """.trimIndent()
     }
 

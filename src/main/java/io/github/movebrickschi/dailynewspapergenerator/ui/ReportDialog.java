@@ -26,6 +26,8 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.ActionMap;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -171,37 +173,50 @@ public class ReportDialog extends DialogWrapper {
 
     @Override
     protected JComponent createSouthPanel() {
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, UiTokens.Sizes.gap(), 0));
+        // 顶部行：模板 + 通道 + 状态 + 进度条
+        JPanel topLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, UiTokens.Sizes.gap(), 0));
         JBLabel templateLabel = new JBLabel(DailyReportBundle.message("dialog.template.label") + ":");
         templateCombo.setToolTipText(DailyReportBundle.message("dialog.template.tooltip"));
         JBLabel channelLabel = new JBLabel(DailyReportBundle.message("dialog.channel.label") + ":");
         channelCombo.setToolTipText(DailyReportBundle.message("dialog.channel.tooltip"));
-        left.add(templateLabel);
-        left.add(templateCombo);
-        left.add(channelLabel);
-        left.add(channelCombo);
+        topLeft.add(templateLabel);
+        topLeft.add(templateCombo);
+        topLeft.add(channelLabel);
+        topLeft.add(channelCombo);
 
-        JPanel center = new JPanel(new BorderLayout());
+        JPanel topRight = new JPanel(new BorderLayout(UiTokens.Sizes.gap(), 0));
         statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
-        center.add(statusLabel, BorderLayout.CENTER);
-        center.add(progressBar, BorderLayout.EAST);
+        topRight.add(statusLabel, BorderLayout.CENTER);
+        topRight.add(progressBar, BorderLayout.EAST);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiTokens.Sizes.gap(), 0));
-        copyBtn.addActionListener(e -> doCopy());
-        exportBtn.addActionListener(e -> doExport());
-        pushBtn.addActionListener(e -> doPush());
-        repolishBtn.addActionListener(e -> doRepolish());
+        JPanel topRow = new JPanel(new BorderLayout(UiTokens.Sizes.gapLg(), 0));
+        topRow.add(topLeft, BorderLayout.WEST);
+        topRow.add(topRight, BorderLayout.CENTER);
+
+        // 底部行：按钮区（次要按钮靠左，主要按钮靠右；中间用 separator 分割视觉权重）
+        JPanel bottomLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, UiTokens.Sizes.gap(), 0));
         closeBtn.addActionListener(e -> doCancelAction());
-        right.add(closeBtn);
-        right.add(repolishBtn);
-        right.add(exportBtn);
-        right.add(copyBtn);
-        right.add(pushBtn);
+        exportBtn.addActionListener(e -> doExport());
+        repolishBtn.addActionListener(e -> doRepolish());
+        bottomLeft.add(closeBtn);
+        bottomLeft.add(exportBtn);
+        bottomLeft.add(repolishBtn);
 
-        JPanel south = new JPanel(new BorderLayout(UiTokens.Sizes.gapLg(), 0));
-        south.add(left, BorderLayout.WEST);
-        south.add(center, BorderLayout.CENTER);
-        south.add(right, BorderLayout.EAST);
+        JPanel bottomRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiTokens.Sizes.gap(), 0));
+        copyBtn.addActionListener(e -> doCopy());
+        pushBtn.addActionListener(e -> doPush());
+        bottomRight.add(copyBtn);
+        bottomRight.add(pushBtn);
+
+        JPanel bottomRow = new JPanel(new BorderLayout(UiTokens.Sizes.gapLg(), 0));
+        bottomRow.add(bottomLeft, BorderLayout.WEST);
+        bottomRow.add(bottomRight, BorderLayout.EAST);
+
+        JPanel south = new JPanel();
+        south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
+        south.add(topRow);
+        south.add(Box.createVerticalStrut(JBUI.scale(6)));
+        south.add(bottomRow);
         south.setBorder(JBUI.Borders.empty(8));
         return south;
     }
@@ -277,13 +292,20 @@ public class ReportDialog extends DialogWrapper {
     private void refreshChannels() {
         channelCombo.removeAllItems();
         LlmSettings settings = LlmSettings.getInstance();
-        if (settings == null || settings.channels == null) {
-            return;
+        if (settings != null && settings.channels != null) {
+            for (ChannelConfig ch : settings.channels) {
+                if (ch != null) channelCombo.addItem(ch);
+            }
         }
-        for (ChannelConfig ch : settings.channels) {
-            if (ch != null) channelCombo.addItem(ch);
+        boolean hasChannels = channelCombo.getItemCount() > 0;
+        pushBtn.setEnabled(hasChannels);
+        if (!hasChannels) {
+            // 空通道列表时给一个引导式 tooltip + 状态提示，点击 push 时引导用户去设置
+            pushBtn.setToolTipText(DailyReportBundle.message("dialog.push.empty.tooltip"));
+            statusNotifier.info(DailyReportBundle.message("status.channels.empty"));
+        } else {
+            pushBtn.setToolTipText(DailyReportBundle.message("dialog.push.tooltip"));
         }
-        pushBtn.setEnabled(channelCombo.getItemCount() > 0);
     }
 
     private void doCopy() {
@@ -318,8 +340,17 @@ public class ReportDialog extends DialogWrapper {
         }
         String content = editArea.getText();
         pushBtn.setEnabled(false);
+        // 把 push 按钮临时换为 spinner 图标 + 改文案，结束后恢复
+        final javax.swing.Icon originalIcon = pushBtn.getIcon();
+        final String originalText = pushBtn.getText();
+        pushBtn.setIcon(new com.intellij.ui.AnimatedIcon.Default());
+        pushBtn.setText(DailyReportBundle.message("status.pushing", ch.name));
         ReportPushHelper.executePush(project, ch, title, content, statusNotifier,
-                () -> pushBtn.setEnabled(true),
+                () -> {
+                    pushBtn.setEnabled(true);
+                    pushBtn.setIcon(originalIcon);
+                    pushBtn.setText(originalText);
+                },
                 this::doPush);
     }
 
@@ -373,6 +404,12 @@ public class ReportDialog extends DialogWrapper {
 
     @Override
     public void doCancelAction() {
+        // 流式期间 Esc / 关闭按钮只停流，不关闭对话框；用户可以保留已生成的部分内容继续编辑/推送。
+        if (streaming) {
+            cancelFlag.set(true);
+            statusNotifier.info(DailyReportBundle.message("status.streaming.cancelling"));
+            return;
+        }
         cancelFlag.set(true);
         super.doCancelAction();
     }
