@@ -1,11 +1,9 @@
 package io.github.movebrickschi.dailynewspapergenerator.ui;
 
-import com.intellij.notification.Notification;
-import com.intellij.notification.NotificationType;
-import com.intellij.notification.Notifications;
+import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.options.ShowSettingsUtil;
+import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -15,20 +13,35 @@ import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.util.ui.JBUI;
-import io.github.movebrickschi.dailynewspapergenerator.channel.ChannelSenderRegistry;
-import io.github.movebrickschi.dailynewspapergenerator.channel.SendResult;
 import io.github.movebrickschi.dailynewspapergenerator.config.ChannelConfig;
 import io.github.movebrickschi.dailynewspapergenerator.config.LlmSettings;
-import io.github.movebrickschi.dailynewspapergenerator.config.LlmSettingsConfigurable;
+import io.github.movebrickschi.dailynewspapergenerator.config.LlmSettingsListener;
 import io.github.movebrickschi.dailynewspapergenerator.config.PromptTemplate;
+import io.github.movebrickschi.dailynewspapergenerator.i18n.DailyReportBundle;
 import io.github.movebrickschi.dailynewspapergenerator.utils.ExportService;
 import io.github.movebrickschi.dailynewspapergenerator.utils.LlmUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.ActionMap;
+import javax.swing.InputMap;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JEditorPane;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JTextArea;
+import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
 import javax.swing.event.HyperlinkEvent;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.datatransfer.StringSelection;
 import java.io.File;
 import java.io.IOException;
@@ -38,11 +51,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 报告展示对话框（V2）。
+ * 报告展示对话框。统一通过 {@link ReportDialogs} 静态门面构造。
  * <ul>
- *   <li>左侧可编辑的 markdown 文本区</li>
- *   <li>右侧 markdown 预览（基于 JEditorPane HTML 渲染，简易）</li>
- *   <li>底部主按钮：复制 / 导出 md / 推送到… / 再润色（可用时）</li>
+ *   <li>可编辑的 markdown 文本区</li>
+ *   <li>markdown 预览（基于 JEditorPane HTML 渲染）</li>
+ *   <li>底部三区布局：左 = 模板/通道下拉；中 = 状态栏 + 进度条；右 = 动作按钮</li>
+ *   <li>支持流式接收 LLM 响应，可中断</li>
+ *   <li>快捷键：Esc 关闭、Ctrl+Enter 推送</li>
  * </ul>
  *
  * @author Liu Chunchi
@@ -54,13 +69,25 @@ public class ReportDialog extends DialogWrapper {
     private final JTextArea editArea = new JTextArea();
     private final JEditorPane previewPane = new JEditorPane("text/html", "");
     private final JBLabel statusLabel = new JBLabel(" ");
+    private final JProgressBar progressBar = new JProgressBar();
+    private final StatusNotifier statusNotifier;
     private final ComboBox<PromptTemplate> templateCombo = new ComboBox<>();
     private final ComboBox<ChannelConfig> channelCombo = new ComboBox<>();
-    private final JButton copyBtn = new JButton("复制");
-    private final JButton exportBtn = new JButton("导出 md");
-    private final JButton pushBtn = new JButton("推送");
-    private final JButton repolishBtn = new JButton("再润色");
-    private final JButton closeBtn = new JButton("关闭");
+    private final JButton copyBtn = ReportButtonFactory.primary(
+            DailyReportBundle.message("dialog.copy"), UiTokens.Icons.COPY,
+            DailyReportBundle.message("dialog.copy.tooltip"));
+    private final JButton exportBtn = ReportButtonFactory.secondary(
+            DailyReportBundle.message("dialog.export"), UiTokens.Icons.EXPORT,
+            DailyReportBundle.message("dialog.export.tooltip"));
+    private final JButton pushBtn = ReportButtonFactory.mainAction(
+            DailyReportBundle.message("dialog.push"), UiTokens.Icons.PUSH,
+            DailyReportBundle.message("dialog.push.tooltip"));
+    private final JButton repolishBtn = ReportButtonFactory.secondary(
+            DailyReportBundle.message("dialog.repolish"), UiTokens.Icons.REPOLISH,
+            DailyReportBundle.message("dialog.repolish.tooltip"));
+    private final JButton closeBtn = ReportButtonFactory.secondary(
+            DailyReportBundle.message("dialog.close"), UiTokens.Icons.CLOSE,
+            DailyReportBundle.message("dialog.close.tooltip"));
 
     /** 原始 commit 内容；非空时启用「再润色」。 */
     @Nullable
@@ -70,6 +97,9 @@ public class ReportDialog extends DialogWrapper {
     private final AtomicBoolean cancelFlag = new AtomicBoolean(false);
 
     private boolean streaming = false;
+
+    /** 预览 debounce 定时器，200ms 内的连续编辑/SSE delta 只触发一次预览重渲。 */
+    private final javax.swing.Timer previewDebounceTimer;
 
     public ReportDialog(@NotNull Project project,
                         @NotNull String title,
@@ -86,76 +116,137 @@ public class ReportDialog extends DialogWrapper {
         editArea.setLineWrap(true);
         editArea.setWrapStyleWord(true);
         editArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
-        editArea.getDocument().addDocumentListener(new SimpleDocumentListener(this::refreshPreview));
+        previewDebounceTimer = new javax.swing.Timer(200, e -> renderPreviewNow());
+        previewDebounceTimer.setRepeats(false);
+        editArea.getDocument().addDocumentListener(new SimpleDocumentListener(this::schedulePreview));
+        progressBar.setIndeterminate(false);
+        progressBar.setVisible(false);
+        progressBar.setPreferredSize(new Dimension(JBUI.scale(120), JBUI.scale(4)));
+        progressBar.setBorder(JBUI.Borders.empty(0, 8));
+        statusNotifier = new StatusNotifier(statusLabel, progressBar);
         init();
-        refreshPreview();
+        renderPreviewNow();
         refreshTemplates();
         refreshChannels();
         repolishBtn.setVisible(rawSource != null && !rawSource.isBlank());
+        subscribeSettingsChanged();
+    }
+
+    /**
+     * 订阅 {@link LlmSettingsListener}：用户在设置页保存后自动刷新模板 / 通道下拉。
+     * 通过 {@link #getDisposable()} 关联对话框生命周期，对话框关闭时自动取消订阅。
+     */
+    private void subscribeSettingsChanged() {
+        try {
+            ApplicationManager.getApplication().getMessageBus()
+                    .connect(getDisposable())
+                    .subscribe(LlmSettingsListener.TOPIC, () -> ApplicationManager.getApplication().invokeLater(() -> {
+                        refreshTemplates();
+                        refreshChannels();
+                    }));
+        } catch (Throwable ignored) {
+            // 订阅失败不影响对话框正常使用，只是失去自动刷新能力
+        }
     }
 
     @Nullable
     @Override
     protected JComponent createCenterPanel() {
         JBTabbedPane tabs = new JBTabbedPane();
-        tabs.addTab("编辑", new JBScrollPane(editArea));
+        tabs.addTab(DailyReportBundle.message("dialog.tab.edit"), new JBScrollPane(editArea));
         previewPane.setEditable(false);
         previewPane.addHyperlinkListener(e -> {
             if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED && e.getURL() != null) {
-                try {
-                    Desktop.getDesktop().browse(e.getURL().toURI());
-                } catch (Exception ignored) {
-                    // ignore
-                }
+                BrowserUtil.browse(e.getURL());
             }
         });
-        tabs.addTab("预览", new JBScrollPane(previewPane));
+        tabs.addTab(DailyReportBundle.message("dialog.tab.preview"), new JBScrollPane(previewPane));
 
         JPanel root = new JPanel(new BorderLayout());
         root.add(tabs, BorderLayout.CENTER);
-        root.setPreferredSize(new Dimension(JBUI.scale(720), JBUI.scale(520)));
+        root.setPreferredSize(new Dimension(UiTokens.Sizes.dialogWidth(), UiTokens.Sizes.dialogHeight()));
+        registerShortcuts(root);
         return root;
     }
 
     @Override
     protected JComponent createSouthPanel() {
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, JBUI.scale(6), 0));
-        left.add(new JBLabel("模板:"));
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, UiTokens.Sizes.gap(), 0));
+        JBLabel templateLabel = new JBLabel(DailyReportBundle.message("dialog.template.label") + ":");
+        templateCombo.setToolTipText(DailyReportBundle.message("dialog.template.tooltip"));
+        JBLabel channelLabel = new JBLabel(DailyReportBundle.message("dialog.channel.label") + ":");
+        channelCombo.setToolTipText(DailyReportBundle.message("dialog.channel.tooltip"));
+        left.add(templateLabel);
         left.add(templateCombo);
-        left.add(new JBLabel("通道:"));
+        left.add(channelLabel);
         left.add(channelCombo);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, JBUI.scale(6), 0));
+        JPanel center = new JPanel(new BorderLayout());
+        statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        center.add(statusLabel, BorderLayout.CENTER);
+        center.add(progressBar, BorderLayout.EAST);
+
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiTokens.Sizes.gap(), 0));
         copyBtn.addActionListener(e -> doCopy());
         exportBtn.addActionListener(e -> doExport());
         pushBtn.addActionListener(e -> doPush());
         repolishBtn.addActionListener(e -> doRepolish());
         closeBtn.addActionListener(e -> doCancelAction());
-        right.add(copyBtn);
-        right.add(exportBtn);
-        right.add(pushBtn);
-        right.add(repolishBtn);
         right.add(closeBtn);
+        right.add(repolishBtn);
+        right.add(exportBtn);
+        right.add(copyBtn);
+        right.add(pushBtn);
 
-        JPanel south = new JPanel(new BorderLayout());
-        south.add(statusLabel, BorderLayout.WEST);
-        JPanel inner = new JPanel(new BorderLayout());
-        inner.add(left, BorderLayout.WEST);
-        inner.add(right, BorderLayout.EAST);
-        south.add(inner, BorderLayout.CENTER);
+        JPanel south = new JPanel(new BorderLayout(UiTokens.Sizes.gapLg(), 0));
+        south.add(left, BorderLayout.WEST);
+        south.add(center, BorderLayout.CENTER);
+        south.add(right, BorderLayout.EAST);
         south.setBorder(JBUI.Borders.empty(8));
         return south;
     }
 
     @Override
     protected Action @NotNull [] createActions() {
-        // 我们用自定义的南侧按钮，因此这里返回空数组，避免出现默认的 OK/Cancel
         return new Action[0];
     }
 
-    private void refreshPreview() {
+    private void registerShortcuts(@NotNull JComponent root) {
+        InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = root.getActionMap();
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "dr.close");
+        am.put("dr.close", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                doCancelAction();
+            }
+        });
+        int ctrl = java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, ctrl), "dr.push");
+        am.put("dr.push", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (pushBtn.isEnabled()) {
+                    doPush();
+                }
+            }
+        });
+    }
+
+    private void schedulePreview() {
+        // 流式期间禁用预览 debounce：流式 delta 高频触发，HTML 全量 reparse + setText
+        // 会卡 EDT 且观感意义不大。改为流式结束后统一渲染一次。
+        if (streaming) {
+            return;
+        }
+        if (previewDebounceTimer != null) {
+            previewDebounceTimer.restart();
+        }
+    }
+
+    private void renderPreviewNow() {
         String md = editArea.getText();
-        previewPane.setText(MarkdownRenderer.toHtml(md));
+        previewPane.setText(MarkdownEngines.current().toHtml(md));
         previewPane.setCaretPosition(0);
     }
 
@@ -165,8 +256,8 @@ public class ReportDialog extends DialogWrapper {
         if (settings == null) {
             return;
         }
-        // 在最前面塞一个「默认模板」哨兵
-        PromptTemplate def = new PromptTemplate("默认模板", settings.promptTemplate);
+        PromptTemplate def = new PromptTemplate(DailyReportBundle.message("templates.preset.blank"),
+                settings.promptTemplate);
         def.id = "";
         templateCombo.addItem(def);
         if (settings.templates != null) {
@@ -174,7 +265,6 @@ public class ReportDialog extends DialogWrapper {
                 if (t != null) templateCombo.addItem(t);
             }
         }
-        // 选中当前激活的
         for (int i = 0; i < templateCombo.getItemCount(); i++) {
             PromptTemplate t = templateCombo.getItemAt(i);
             if (t != null && safeEq(t.id, settings.activeTemplateId)) {
@@ -198,56 +288,39 @@ public class ReportDialog extends DialogWrapper {
 
     private void doCopy() {
         try {
-            Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(editArea.getText()), null);
-            statusLabel.setText("已复制到剪贴板");
+            String md = editArea.getText();
+            String html = MarkdownEngines.current().toHtml(md);
+            CopyPasteManager.getInstance().setContents(new MarkdownHtmlTransferable(md, html));
+            statusNotifier.success(DailyReportBundle.message("status.copied"));
         } catch (Exception ex) {
-            statusLabel.setText("复制失败: " + ex.getMessage());
+            statusNotifier.error(DailyReportBundle.message("status.copy.failed", ex.getMessage()));
         }
     }
 
     private void doExport() {
         try {
             File file = ExportService.exportMarkdown(project, editArea.getText(), title);
-            statusLabel.setText("已导出到 " + file.getAbsolutePath());
+            statusNotifier.success(DailyReportBundle.message("status.exported", file.getAbsolutePath()));
             VirtualFile vf = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file);
             if (vf != null) {
                 FileEditorManager.getInstance(project).openFile(vf, true);
             }
         } catch (IOException ex) {
-            statusLabel.setText("导出失败: " + ex.getMessage());
+            statusNotifier.error(DailyReportBundle.message("status.export.failed", ex.getMessage()));
         }
     }
 
     private void doPush() {
         ChannelConfig ch = (ChannelConfig) channelCombo.getSelectedItem();
         if (ch == null) {
-            statusLabel.setText("请先在 设置 → 日报生成器设置 → 推送通道 中添加通道");
+            statusNotifier.error(DailyReportBundle.message("status.no.channel"));
             return;
         }
         String content = editArea.getText();
         pushBtn.setEnabled(false);
-        statusLabel.setText("正在推送到 " + ch.name + "...");
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            SendResult result;
-            try {
-                result = ChannelSenderRegistry.send(ch, title, content);
-            } catch (Exception ex) {
-                result = SendResult.failure("Sender 异常: " + ex.getMessage());
-            }
-            final SendResult finalResult = result;
-            ApplicationManager.getApplication().invokeLater(() -> {
-                pushBtn.setEnabled(true);
-                if (finalResult.success()) {
-                    statusLabel.setText("推送成功 → " + ch.name);
-                    notifyInfo("推送成功", ch.name + " 已收到日报");
-                } else {
-                    statusLabel.setText("推送失败 → " + ch.name + ": " + finalResult.message());
-                    notifyError("推送失败 → " + ch.name, finalResult.message(),
-                            new RetryAction(this));
-                }
-            });
-        });
+        ReportPushHelper.executePush(project, ch, title, content, statusNotifier,
+                () -> pushBtn.setEnabled(true),
+                this::doPush);
     }
 
     private void doRepolish() {
@@ -256,32 +329,44 @@ public class ReportDialog extends DialogWrapper {
         }
         if (streaming) {
             cancelFlag.set(true);
-            statusLabel.setText("正在中断当前流...");
+            statusNotifier.info(DailyReportBundle.message("status.streaming.cancelling"));
             return;
         }
         PromptTemplate selected = (PromptTemplate) templateCombo.getSelectedItem();
         String prompt = selected == null ? null : selected.content;
+        startStream(rawSource, prompt);
+    }
+
+    private void startStream(@NotNull String content, @Nullable String promptOverride) {
         editArea.setText("");
         cancelFlag.set(false);
         streaming = true;
-        repolishBtn.setText("停止");
-        statusLabel.setText("正在润色...");
+        repolishBtn.setText(DailyReportBundle.message("dialog.stop"));
+        repolishBtn.setIcon(UiTokens.Icons.STOP);
+        repolishBtn.setToolTipText(DailyReportBundle.message("dialog.stop.tooltip"));
+        statusNotifier.running(DailyReportBundle.message("status.polishing"));
         StringBuilder buf = new StringBuilder();
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            boolean ok = LlmUtil.polishStream(rawSource, prompt, delta -> {
+            boolean ok = LlmUtil.polishStream(content, promptOverride, delta -> {
                 buf.append(delta);
                 int len = buf.length();
                 ApplicationManager.getApplication().invokeLater(() -> {
                     editArea.append(delta);
-                    statusLabel.setText("已接收 " + len + " 字符...");
+                    statusNotifier.running(DailyReportBundle.message("status.polishing.received", len));
                 });
             }, cancelFlag::get);
             ApplicationManager.getApplication().invokeLater(() -> {
                 streaming = false;
-                repolishBtn.setText("再润色");
-                statusLabel.setText(ok
-                        ? "润色完成，共 " + buf.length() + " 字符"
-                        : "润色失败或中断");
+                repolishBtn.setText(DailyReportBundle.message("dialog.repolish"));
+                repolishBtn.setIcon(UiTokens.Icons.REPOLISH);
+                repolishBtn.setToolTipText(DailyReportBundle.message("dialog.repolish.tooltip"));
+                if (ok) {
+                    statusNotifier.success(DailyReportBundle.message("status.polish.completed", buf.length()));
+                } else {
+                    statusNotifier.error(DailyReportBundle.message("status.polish.failed"));
+                }
+                // 流式期间预览渲染被 schedulePreview 抑制，结束后一次性补一次。
+                renderPreviewNow();
             });
         });
     }
@@ -294,55 +379,11 @@ public class ReportDialog extends DialogWrapper {
 
     /** 在外部启动一次流式接收。供 GenerationXxxAction 使用。 */
     public void startStreaming(@NotNull String content, @Nullable String promptOverride) {
-        editArea.setText("");
-        cancelFlag.set(false);
-        streaming = true;
-        repolishBtn.setText("停止");
-        statusLabel.setText("正在润色...");
-        StringBuilder buf = new StringBuilder();
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            boolean ok = LlmUtil.polishStream(content, promptOverride, delta -> {
-                buf.append(delta);
-                int len = buf.length();
-                ApplicationManager.getApplication().invokeLater(() -> {
-                    editArea.append(delta);
-                    statusLabel.setText("已接收 " + len + " 字符...");
-                });
-            }, cancelFlag::get);
-            ApplicationManager.getApplication().invokeLater(() -> {
-                streaming = false;
-                repolishBtn.setText("再润色");
-                statusLabel.setText(ok
-                        ? "润色完成，共 " + buf.length() + " 字符"
-                        : "润色失败或中断");
-            });
-        });
+        startStream(content, promptOverride);
     }
 
     private static boolean safeEq(String a, String b) {
         return (a == null ? "" : a).equals(b == null ? "" : b);
-    }
-
-    private void notifyInfo(String t, String msg) {
-        Notification n = new Notification("DailyReportGroup", t, msg, NotificationType.INFORMATION);
-        Notifications.Bus.notify(n, project);
-    }
-
-    private void notifyError(String t, String msg, RetryAction retry) {
-        Notification n = new Notification("DailyReportGroup", t, msg, NotificationType.ERROR);
-        n.addAction(com.intellij.notification.NotificationAction.createSimple("重试",
-                (Runnable) retry::run));
-        n.addAction(com.intellij.notification.NotificationAction.createSimple("打开设置",
-                (Runnable) () -> ShowSettingsUtil.getInstance()
-                        .showSettingsDialog(project, LlmSettingsConfigurable.class)));
-        Notifications.Bus.notify(n, project);
-    }
-
-    /** Notification 重试动作的简单实现。 */
-    private static class RetryAction {
-        private final ReportDialog dialog;
-        RetryAction(ReportDialog dialog) { this.dialog = dialog; }
-        void run() { dialog.doPush(); }
     }
 
     /** 文本变化触发重渲的简化监听。 */

@@ -51,7 +51,7 @@ public class DingTalkRobotSender implements ChannelSender {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("msgtype", "markdown");
         Map<String, Object> markdown = new LinkedHashMap<>();
-        markdown.put("title", emptyToDefault(title, config.title, "日报"));
+        markdown.put("title", SenderSupport.emptyToDefault(title, config.title, "日报"));
         markdown.put("text", content == null ? "" : content);
         body.put("markdown", markdown);
 
@@ -65,7 +65,7 @@ public class DingTalkRobotSender implements ChannelSender {
 
     private SendResult parse(HttpResponse<String> resp) {
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            return SendResult.failure("HTTP " + resp.statusCode() + ": " + truncate(resp.body()));
+            return SendResult.failure("HTTP " + resp.statusCode() + ": " + SenderSupport.truncate(resp.body()));
         }
         try {
             JsonObject obj = JsonParser.parseString(resp.body()).getAsJsonObject();
@@ -73,7 +73,7 @@ public class DingTalkRobotSender implements ChannelSender {
             if (code == 0) {
                 return SendResult.ok();
             }
-            String msg = obj.has("errmsg") ? obj.get("errmsg").getAsString() : truncate(resp.body());
+            String msg = obj.has("errmsg") ? obj.get("errmsg").getAsString() : SenderSupport.truncate(resp.body());
             return SendResult.failure("钉钉返回 errcode=" + code + ", errmsg=" + msg);
         } catch (Exception e) {
             return SendResult.failure("解析钉钉响应失败: " + e.getMessage());
@@ -86,17 +86,5 @@ public class DingTalkRobotSender implements ChannelSender {
         mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         byte[] signed = mac.doFinal(stringToSign.getBytes(StandardCharsets.UTF_8));
         return new String(Base64.getEncoder().encode(signed), StandardCharsets.UTF_8);
-    }
-
-    private static String emptyToDefault(String... candidates) {
-        for (String c : candidates) {
-            if (c != null && !c.isBlank()) return c;
-        }
-        return "";
-    }
-
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 200 ? s : s.substring(0, 200) + "...";
     }
 }

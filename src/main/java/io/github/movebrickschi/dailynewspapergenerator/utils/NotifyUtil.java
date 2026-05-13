@@ -31,7 +31,27 @@ public final class NotifyUtil {
     }
 
     public static void error(@Nullable Project project, @NotNull String title, @NotNull String content) {
+        error(project, title, content, (NotificationAction[]) null);
+    }
+
+    /**
+     * 错误通知扩展形式：除了固定附带「打开设置」入口外，调用方可追加自定义动作
+     * （例如「重试」、「查看日志」），按提供顺序追加到 notification action bar。
+     *
+     * @param actions 可为空或长度为 0。若包含 {@code null} 元素将被忽略。
+     */
+    public static void error(@Nullable Project project,
+                             @NotNull String title,
+                             @NotNull String content,
+                             @Nullable NotificationAction... actions) {
         Notification n = new Notification(GROUP, title, content, NotificationType.ERROR);
+        if (actions != null) {
+            for (NotificationAction a : actions) {
+                if (a != null) {
+                    n.addAction(a);
+                }
+            }
+        }
         n.addAction(NotificationAction.createSimple("打开设置",
                 (Runnable) () -> ShowSettingsUtil.getInstance()
                         .showSettingsDialog(project, LlmSettingsConfigurable.class)));

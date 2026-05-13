@@ -9,16 +9,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
  * Markdown 导出服务。默认目录：项目根/docs/daily/yyyy-MM-dd.md。
+ * <p>同一天多次导出时自动在文件名追加分钟级时间戳（{@code -HHmm}），
+ * 仍发生冲突则继续追加自增序号，避免误覆盖。
  *
  * @author Liu Chunchi
  */
 public final class ExportService {
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter MINUTE = DateTimeFormatter.ofPattern("HHmm");
 
     private ExportService() {
     }
@@ -28,13 +32,20 @@ public final class ExportService {
         if (!dir.exists() && !dir.mkdirs()) {
             throw new IOException("无法创建目录: " + dir.getAbsolutePath());
         }
-        String dateStr = LocalDate.now().format(ISO);
+        LocalDateTime now = LocalDateTime.now();
+        String dateStr = now.toLocalDate().format(ISO);
         String safeTitle = sanitize(title);
-        File target = new File(dir, dateStr + (safeTitle.isEmpty() ? "" : "-" + safeTitle) + ".md");
-        int counter = 1;
-        while (target.exists()) {
-            target = new File(dir, dateStr + (safeTitle.isEmpty() ? "" : "-" + safeTitle) + "-" + counter + ".md");
-            counter++;
+        String stem = dateStr + (safeTitle.isEmpty() ? "" : "-" + safeTitle);
+
+        File target = new File(dir, stem + ".md");
+        if (target.exists()) {
+            String minute = now.format(MINUTE);
+            target = new File(dir, stem + "-" + minute + ".md");
+            int counter = 1;
+            while (target.exists()) {
+                target = new File(dir, stem + "-" + minute + "-" + counter + ".md");
+                counter++;
+            }
         }
         Files.writeString(target.toPath(), content == null ? "" : content, StandardCharsets.UTF_8);
         return target;

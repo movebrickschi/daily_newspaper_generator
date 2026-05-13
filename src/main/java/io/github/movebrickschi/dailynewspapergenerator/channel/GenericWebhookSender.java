@@ -59,7 +59,7 @@ public class GenericWebhookSender implements ChannelSender {
             if (status >= 200 && status < 300) {
                 return SendResult.ok("HTTP " + status);
             }
-            return SendResult.failure("HTTP " + status + ": " + truncate(resp.body()));
+            return SendResult.failure("HTTP " + status + ": " + SenderSupport.truncate(resp.body()));
         } catch (Exception e) {
             return SendResult.failure("HTTP 请求失败: " + e.getMessage());
         }
@@ -87,10 +87,5 @@ public class GenericWebhookSender implements ChannelSender {
             }
         }
         return sb.toString();
-    }
-
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 200 ? s : s.substring(0, 200) + "...";
     }
 }

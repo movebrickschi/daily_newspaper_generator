@@ -3,14 +3,11 @@ package io.github.movebrickschi.dailynewspapergenerator.action;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
-import io.github.movebrickschi.dailynewspapergenerator.ui.ReportDialogV2;
+import io.github.movebrickschi.dailynewspapergenerator.ui.ReportDialogs;
 import io.github.movebrickschi.dailynewspapergenerator.utils.ExtractOptions;
 import io.github.movebrickschi.dailynewspapergenerator.utils.GitCommitExtractor;
-import io.github.movebrickschi.dailynewspapergenerator.utils.NotifyUtil;
+import io.github.movebrickschi.dailynewspapergenerator.utils.ReportActionRunner;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -24,21 +21,11 @@ public class ExtractTodayCommitsAction extends AnAction {
     public void actionPerformed(@NotNull AnActionEvent e) {
         Project project = e.getProject();
         if (project == null) return;
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, "正在提取今日提交...", true) {
-            @Override
-            public void run(@NotNull ProgressIndicator indicator) {
-                try {
-                    indicator.setText("正在抽取，请稍候...");
-                    indicator.setIndeterminate(true);
-                    String md = getTodaysCommits(project);
-                    ApplicationManager.getApplication().invokeLater(() ->
-                            ReportDialogV2.show(project, "今日提交记录", md));
-                } catch (Exception ex) {
-                    ApplicationManager.getApplication().invokeLater(() ->
-                            NotifyUtil.error(project, "提取失败",
-                                    "提取过程中出现错误: " + ex.getMessage()));
-                }
-            }
+        ReportActionRunner.runInBackground(project, "正在提取今日提交...", "提取失败", indicator -> {
+            indicator.setText("正在抽取，请稍候...");
+            String md = getTodaysCommits(project);
+            ApplicationManager.getApplication().invokeLater(() ->
+                    ReportDialogs.show(project, "今日提交记录", md));
         });
     }
 

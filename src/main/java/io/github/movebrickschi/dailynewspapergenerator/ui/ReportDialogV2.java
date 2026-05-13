@@ -4,30 +4,30 @@ import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * 报告展示对话框 V2 入口（详细实现见 P3 阶段）。
- * <p>
- * 这里先提供一个静态 show 方法，供其它 Action 提前使用；具体可编辑/Markdown 预览/再润色/导出
- * 等能力会在 P3 阶段加在 {@link ReportDialog} 里。
+ * 历史入口：{@code V2} 命名暗示「替代 V1」，但实际只是 {@link ReportDialog} 的
+ * 静态构造门面。新代码请使用 {@link ReportDialogs}，本类保留以保证向后兼容。
  *
  * @author Liu Chunchi
+ * @deprecated 改用 {@link ReportDialogs}
  */
+@Deprecated
 public final class ReportDialogV2 {
 
     private ReportDialogV2() {
     }
 
-    /** 展示报告。报告内容使用 markdown 格式。 */
+    /** @deprecated 改用 {@link ReportDialogs#show(Project, String, String)} */
+    @Deprecated
     public static void show(@NotNull Project project, @NotNull String title, @NotNull String markdown) {
-        new ReportDialog(project, title, markdown, null, null).show();
+        ReportDialogs.show(project, title, markdown);
     }
 
-    /** 展示流式 / 可润色的报告。提供原始内容（润色前），方便「再润色」按钮使用。 */
+    /** @deprecated 改用 {@link ReportDialogs#showStreamable(Project, String, String, String)} */
+    @Deprecated
     public static ReportDialog showStreamable(@NotNull Project project,
                                               @NotNull String title,
                                               @NotNull String rawSource,
                                               @NotNull String initialMarkdown) {
-        ReportDialog dialog = new ReportDialog(project, title, initialMarkdown, rawSource, null);
-        dialog.show();
-        return dialog;
+        return ReportDialogs.showStreamable(project, title, rawSource, initialMarkdown);
     }
 }

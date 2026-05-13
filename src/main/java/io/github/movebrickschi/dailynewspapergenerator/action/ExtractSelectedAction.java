@@ -6,7 +6,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.vcs.log.VcsFullCommitDetails;
 import com.intellij.vcs.log.VcsLogCommitSelection;
 import com.intellij.vcs.log.VcsLogDataKeys;
-import io.github.movebrickschi.dailynewspapergenerator.ui.ReportDialogV2;
+import io.github.movebrickschi.dailynewspapergenerator.ui.ReportDialogs;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -48,9 +48,9 @@ public class ExtractSelectedAction extends AnAction {
     }
 
     /**
-     * 兼容旧调用：现在统一走 {@link ReportDialogV2}。
+     * 兼容旧调用：现在统一走 {@link ReportDialogs}。
      */
     public static void showReportInDialog(Project project, String report) {
-        ReportDialogV2.show(project, "选中的提交", report);
+        ReportDialogs.show(project, "选中的提交", report);
     }
 }

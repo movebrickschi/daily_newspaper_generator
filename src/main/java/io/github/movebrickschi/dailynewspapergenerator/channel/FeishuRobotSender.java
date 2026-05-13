@@ -43,14 +43,14 @@ public class FeishuRobotSender implements ChannelSender {
         Map<String, Object> header = new LinkedHashMap<>();
         Map<String, Object> headerTitle = new LinkedHashMap<>();
         headerTitle.put("tag", "plain_text");
-        headerTitle.put("content", emptyToDefault(title, config.title, "日报"));
+        headerTitle.put("content", SenderSupport.emptyToDefault(title, config.title, "日报"));
         header.put("title", headerTitle);
         header.put("template", "blue");
         card.put("header", header);
 
         Map<String, Object> markdownEl = new LinkedHashMap<>();
         markdownEl.put("tag", "markdown");
-        markdownEl.put("content", content == null ? "" : content);
+        markdownEl.put("content", adaptForFeishu(content == null ? "" : content));
 
         card.put("elements", List.of(markdownEl));
         body.put("card", card);
@@ -78,7 +78,7 @@ public class FeishuRobotSender implements ChannelSender {
 
     private SendResult parse(HttpResponse<String> resp) {
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            return SendResult.failure("HTTP " + resp.statusCode() + ": " + truncate(resp.body()));
+            return SendResult.failure("HTTP " + resp.statusCode() + ": " + SenderSupport.truncate(resp.body()));
         }
         try {
             JsonObject obj = JsonParser.parseString(resp.body()).getAsJsonObject();
@@ -86,7 +86,7 @@ public class FeishuRobotSender implements ChannelSender {
             if (code == 0) {
                 return SendResult.ok();
             }
-            String msg = obj.has("msg") ? obj.get("msg").getAsString() : truncate(resp.body());
+            String msg = obj.has("msg") ? obj.get("msg").getAsString() : SenderSupport.truncate(resp.body());
             return SendResult.failure("飞书返回 code=" + code + ", msg=" + msg);
         } catch (Exception e) {
             return SendResult.failure("解析飞书响应失败: " + e.getMessage());
@@ -101,15 +101,46 @@ public class FeishuRobotSender implements ChannelSender {
         return new String(Base64.getEncoder().encode(signed), StandardCharsets.UTF_8);
     }
 
-    private static String emptyToDefault(String... candidates) {
-        for (String c : candidates) {
-            if (c != null && !c.isBlank()) return c;
+    /**
+     * 把通用 GFM 适配为飞书 interactive 卡片 markdown 子集：
+     * <ul>
+     *   <li>{@code > quote} → 用 {@code <font color=grey>...</font>} 模拟（飞书不支持 blockquote）</li>
+     *   <li>水平分隔线 {@code ---} / {@code ***} → 飞书的 element 分隔由卡片自带，删除即可</li>
+     *   <li>三级及以下标题 {@code ### / #### / ##### / ######} → 飞书仅渲染 h1/h2，降级为加粗</li>
+     * </ul>
+     * 其他语法（粗体 / 列表 / 链接 / inline code / 表格）飞书原生支持，直接透传。
+     */
+    static String adaptForFeishu(String md) {
+        if (md == null || md.isEmpty()) {
+            return "";
         }
-        return "";
-    }
-
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 200 ? s : s.substring(0, 200) + "...";
+        StringBuilder out = new StringBuilder(md.length());
+        for (String line : md.split("\\r?\\n", -1)) {
+            String trimmed = line.trim();
+            if (trimmed.equals("---") || trimmed.equals("***") || trimmed.equals("___")) {
+                // 飞书卡片本身有内置分隔；额外渲染 hr 反而显得拥挤，直接吞掉
+                continue;
+            }
+            if (trimmed.startsWith("> ")) {
+                out.append("<font color='grey'>").append(trimmed.substring(2)).append("</font>\n");
+                continue;
+            }
+            if (trimmed.startsWith("### ")) {
+                out.append("**").append(trimmed.substring(4)).append("**\n");
+                continue;
+            }
+            if (trimmed.startsWith("#### ") || trimmed.startsWith("##### ") || trimmed.startsWith("###### ")) {
+                int idx = trimmed.indexOf(' ');
+                out.append("**").append(trimmed.substring(idx + 1)).append("**\n");
+                continue;
+            }
+            out.append(line).append('\n');
+        }
+        // 末尾多出的 \n 不影响渲染但可清理一下
+        int len = out.length();
+        if (len > 0 && out.charAt(len - 1) == '\n') {
+            out.setLength(len - 1);
+        }
+        return out.toString();
     }
 }

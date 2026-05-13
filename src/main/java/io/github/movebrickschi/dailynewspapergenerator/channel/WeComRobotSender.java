@@ -50,7 +50,7 @@ public class WeComRobotSender implements ChannelSender {
 
     private SendResult parse(HttpResponse<String> resp) {
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            return SendResult.failure("HTTP " + resp.statusCode() + ": " + truncate(resp.body()));
+            return SendResult.failure("HTTP " + resp.statusCode() + ": " + SenderSupport.truncate(resp.body()));
         }
         try {
             JsonObject obj = JsonParser.parseString(resp.body()).getAsJsonObject();
@@ -58,15 +58,10 @@ public class WeComRobotSender implements ChannelSender {
             if (code == 0) {
                 return SendResult.ok();
             }
-            String msg = obj.has("errmsg") ? obj.get("errmsg").getAsString() : truncate(resp.body());
+            String msg = obj.has("errmsg") ? obj.get("errmsg").getAsString() : SenderSupport.truncate(resp.body());
             return SendResult.failure("企微返回 errcode=" + code + ", errmsg=" + msg);
         } catch (Exception e) {
             return SendResult.failure("解析企微响应失败: " + e.getMessage());
         }
-    }
-
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 200 ? s : s.substring(0, 200) + "...";
     }
 }

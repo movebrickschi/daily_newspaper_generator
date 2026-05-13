@@ -86,14 +86,14 @@ public class DingTalkReportSender implements ChannelSender {
                 + URLEncoder.encode(token, StandardCharsets.UTF_8);
         HttpResponse<String> resp = HttpUtil.postJson(url, GSON.toJson(root));
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            return SendResult.failure("HTTP " + resp.statusCode() + ": " + truncate(resp.body()));
+            return SendResult.failure("HTTP " + resp.statusCode() + ": " + SenderSupport.truncate(resp.body()));
         }
         JsonObject obj = JsonParser.parseString(resp.body()).getAsJsonObject();
         int code = obj.has("errcode") ? obj.get("errcode").getAsInt() : -1;
         if (code == 0) {
             return SendResult.ok();
         }
-        String msg = obj.has("errmsg") ? obj.get("errmsg").getAsString() : truncate(resp.body());
+        String msg = obj.has("errmsg") ? obj.get("errmsg").getAsString() : SenderSupport.truncate(resp.body());
         if ((code == 40014 || code == 42001) && !retried) {
             AccessTokenCache.invalidate(config.dingAppKey, secret);
             return doSend(config, secret, title, content, true);
@@ -108,10 +108,5 @@ public class DingTalkReportSender implements ChannelSender {
             if (!t.isEmpty()) return t;
         }
         return "";
-    }
-
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 200 ? s : s.substring(0, 200) + "...";
     }
 }
