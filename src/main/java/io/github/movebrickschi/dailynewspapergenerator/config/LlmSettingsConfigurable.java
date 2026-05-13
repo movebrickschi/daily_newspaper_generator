@@ -1,7 +1,9 @@
 package io.github.movebrickschi.dailynewspapergenerator.config;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
+import io.github.movebrickschi.dailynewspapergenerator.i18n.DailyReportBundle;
 import io.github.movebrickschi.dailynewspapergenerator.interfaces.LlmSettingsComponent;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
@@ -25,7 +27,7 @@ public class LlmSettingsConfigurable implements Configurable {
     @Nls(capitalization = Nls.Capitalization.Title)
     @Override
     public String getDisplayName() {
-        return "日报生成器设置";
+        return DailyReportBundle.message("settings.title");
     }
 
     @Override
@@ -91,6 +93,14 @@ public class LlmSettingsConfigurable implements Configurable {
         }
         for (Map.Entry<String, String> entry : mySettingsComponent.getChannelSecretDrafts().entrySet()) {
             SecureKeyStore.store(entry.getKey(), entry.getValue());
+        }
+        // 通知所有已订阅的 UI 重读最新 settings 并刷新模板 / 通道下拉。
+        try {
+            ApplicationManager.getApplication().getMessageBus()
+                    .syncPublisher(LlmSettingsListener.TOPIC)
+                    .settingsChanged();
+        } catch (Throwable ignored) {
+            // MessageBus 不可用（极少见，如测试环境 LightApplication）不应阻断保存
         }
     }
 

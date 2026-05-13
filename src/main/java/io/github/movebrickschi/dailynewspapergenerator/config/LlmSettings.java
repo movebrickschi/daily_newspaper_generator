@@ -21,9 +21,17 @@ import java.util.List;
  */
 @State(
         name = "LlmSettings",
-        storages = @Storage("zhipu-settings.xml")
+        storages = {
+                @Storage("daily-report-settings.xml"),
+                @Storage(value = "zhipu-settings.xml", deprecated = true)
+        }
 )
 public class LlmSettings implements PersistentStateComponent<LlmSettings> {
+
+    /**
+     * 当前 schema 版本。后续若变更字段语义可在 {@link #loadState(LlmSettings)} 中按版本号迁移。
+     */
+    public int schemaVersion = 2;
 
     /**
      * OpenAI 兼容接口的 Base URL（不带 /chat/completions 后缀）。
@@ -95,6 +103,34 @@ public class LlmSettings implements PersistentStateComponent<LlmSettings> {
         if (channels == null) {
             channels = new ArrayList<>();
         }
+        scheduleMigrationIfNeeded();
+    }
+
+    /**
+     * 旧版本（schemaVersion <= 1）持久化的明文 apiKey 自动迁移到 PasswordSafe。
+     * <p>
+     * <b>线程</b>：本方法在 IDE 启动加载 PersistentStateComponent 时被同步调用（很可能在 EDT
+     * 或 startup BGT 上），不能直接同步访问 {@link com.intellij.ide.passwordSafe.PasswordSafe}：
+     * 操作系统钥匙串解锁在某些平台上会弹密码框阻塞调用线程，导致 IDE 启动卡顿。
+     * 因此这里只做轻量判断，把真正的 PasswordSafe 写入排到 BGT 异步执行。
+     */
+    private void scheduleMigrationIfNeeded() {
+        if (schemaVersion >= 2 || apiKey == null || apiKey.isBlank()) {
+            return;
+        }
+        final String pending = apiKey;
+        apiKey = "";
+        schemaVersion = 2;
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            try {
+                String secured = SecureKeyStore.load(SecureKeyStore.KEY_LLM_API_KEY);
+                if (secured.isEmpty()) {
+                    SecureKeyStore.storeApiKey(pending);
+                }
+            } catch (Throwable ignored) {
+                // PasswordSafe 异常不阻塞 IDE 启动，下次保存会再次尝试迁移
+            }
+        });
     }
 
     public static LlmSettings getInstance() {

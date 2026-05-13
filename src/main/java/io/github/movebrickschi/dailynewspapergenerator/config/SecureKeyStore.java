@@ -49,8 +49,13 @@ public final class SecureKeyStore {
     }
 
     /**
-     * 加载 API Key，优先取 PasswordSafe 中的；为空时回退到传入的明文（一般是历史配置中遗留值）。
-     * 如果 fallback 非空、PasswordSafe 为空，会自动把 fallback 迁移到 PasswordSafe，避免下一次再用明文。
+     * 加载 API Key（只读）：优先返回 PasswordSafe 中已保存的凭证；为空时回退到传入的 fallback 明文。
+     * <p>
+     * <b>v1.4 修订</b>：本方法不再因 fallback 非空而自动把 fallback 写入 PasswordSafe。
+     * 旧的"自动迁移"语义带来了副作用——在「设置 → 测试连接」时，用户尚未保存的临时输入
+     * 会被悄悄持久化。
+     * 自动迁移的需求改由 {@link io.github.movebrickschi.dailynewspapergenerator.config.LlmSettings}
+     * 在 startup 后异步显式 {@link #storeApiKey(String)} 完成。
      */
     @NotNull
     public static String loadApiKey(@Nullable String fallbackPlain) {
@@ -58,11 +63,7 @@ public final class SecureKeyStore {
         if (!secured.isEmpty()) {
             return secured;
         }
-        if (fallbackPlain != null && !fallbackPlain.isEmpty()) {
-            store(KEY_LLM_API_KEY, fallbackPlain);
-            return fallbackPlain;
-        }
-        return "";
+        return fallbackPlain == null ? "" : fallbackPlain;
     }
 
     public static void storeApiKey(@Nullable String value) {

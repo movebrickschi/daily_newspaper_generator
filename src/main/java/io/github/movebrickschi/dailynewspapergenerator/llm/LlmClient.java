@@ -5,12 +5,15 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.movebrickschi.dailynewspapergenerator.config.LlmSettings;
+import io.github.movebrickschi.dailynewspapergenerator.config.SecureKeyStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,6 +23,11 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -39,15 +47,58 @@ public class LlmClient {
 
     private static final Logger log = LoggerFactory.getLogger(LlmClient.class);
     private static final Gson GSON = new Gson();
+    private static final String USER_AGENT = "DailyReportPlugin/1.4.0 (IntelliJ Platform)";
+
+    /**
+     * 全局共享的 HttpClient 实例。HttpClient 内部维护连接池，
+     * 共享可显著降低每次请求的 TCP/TLS 握手开销。
+     * <p>
+     * 注入独立 {@link CookieManager}（不接受任何 cookie）以避免跟随
+     * JVM 默认 {@code CookieHandler}，杜绝在 IDE 进程中长期累积 cookie 状态
+     * 被泄漏到非预期主机。
+     */
+    private static final HttpClient SHARED_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_NONE))
+            .version(HttpClient.Version.HTTP_2)
+            .build();
+
+    /**
+     * 兜底 HTTP/1.1 客户端。
+     * <p>
+     * 个别企业代理 / 旧版 Nginx 在 HTTP/2 over TLS 下会返回 GOAWAY 或解析失败；
+     * 主请求遇到 {@code java.io.IOException} 且消息匹配 {@code HTTP/2|GOAWAY|http2}
+     * 时自动 fallback 到本客户端单次重试。
+     */
+    private static final HttpClient FALLBACK_HTTP1_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_NONE))
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+
+    /**
+     * 共享调度器：周期性轮询用户取消标志，用以触发流式响应的提前 close。
+     * 替代旧实现中"每个请求 new 一个 Thread + Thread.sleep(50)"，
+     * 大幅降低空载 CPU 占用，且 200ms 间隔仍能给用户即时取消感。
+     */
+    private static final ScheduledExecutorService CANCEL_POLLER = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "llm-cancel-poller");
+        t.setDaemon(true);
+        return t;
+    });
 
     private final LlmSettings settings;
     private final HttpClient httpClient;
 
     public LlmClient(LlmSettings settings) {
         this.settings = settings;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+        this.httpClient = SHARED_CLIENT;
+    }
+
+    private String resolveApiKey() {
+        return SecureKeyStore.loadApiKey(settings == null ? null : settings.apiKey);
     }
 
     /**
@@ -73,14 +124,19 @@ public class LlmClient {
                            Supplier<Boolean> isCancelled) {
         String endpoint = buildEndpoint(settings.baseUrl);
         String payload = buildPayload(systemPrompt, userContent, true);
+        String bearer = resolveApiKey();
+        if (bearer.isEmpty()) {
+            throw new LlmException("API Key 未配置，请在 设置 → 日报生成器设置 中填写");
+        }
 
         int timeout = settings.timeoutSeconds > 0 ? settings.timeoutSeconds : 60;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(Duration.ofSeconds(timeout))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + nullSafe(settings.apiKey))
+                .header("Authorization", "Bearer " + bearer)
                 .header("Accept", "text/event-stream")
+                .header("User-Agent", USER_AGENT)
                 .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                 .build();
 
@@ -89,6 +145,17 @@ public class LlmClient {
         HttpResponse<InputStream> response;
         try {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (java.io.IOException ioEx) {
+            if (looksLikeHttp2Issue(ioEx)) {
+                log.warn("HTTP/2 失败，降级 HTTP/1.1 重试: {}", ioEx.getMessage());
+                try {
+                    response = FALLBACK_HTTP1_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                } catch (Exception retryEx) {
+                    throw new LlmException("调用大模型失败 (HTTP/1.1 兜底亦失败): " + retryEx.getMessage(), retryEx);
+                }
+            } else {
+                throw new LlmException("调用大模型失败: " + ioEx.getMessage(), ioEx);
+            }
         } catch (Exception e) {
             throw new LlmException("调用大模型失败: " + e.getMessage(), e);
         }
@@ -100,15 +167,33 @@ public class LlmClient {
             throw new LlmException("大模型返回错误(HTTP " + status + "): " + truncate(body, 500));
         }
 
+        InputStream body = response.body();
+        AtomicBoolean userCancelled = new AtomicBoolean(false);
+        ScheduledFuture<?> watchdog = null;
+        if (isCancelled != null) {
+            watchdog = CANCEL_POLLER.scheduleWithFixedDelay(() -> {
+                if (Boolean.TRUE.equals(isCancelled.get()) && !userCancelled.get()) {
+                    userCancelled.set(true);
+                    try {
+                        body.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }, 200, 200, TimeUnit.MILLISECONDS);
+        }
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                new InputStreamReader(body, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (isCancelled != null && Boolean.TRUE.equals(isCancelled.get())) {
-                    log.info("流式请求被取消");
+                    userCancelled.set(true);
                     break;
                 }
                 if (line.isEmpty()) {
+                    continue;
+                }
+                if (line.startsWith("event:") && line.contains("error")) {
+                    log.warn("SSE error event: {}", truncate(line, 200));
                     continue;
                 }
                 if (!line.startsWith("data:")) {
@@ -123,6 +208,12 @@ public class LlmClient {
                 }
                 try {
                     JsonObject obj = JsonParser.parseString(data).getAsJsonObject();
+                    if (obj.has("error") && obj.get("error").isJsonObject()) {
+                        String msg = obj.getAsJsonObject("error").has("message")
+                                ? obj.getAsJsonObject("error").get("message").getAsString()
+                                : data;
+                        throw new LlmException("LLM 返回错误: " + truncate(msg, 300));
+                    }
                     JsonArray choices = obj.getAsJsonArray("choices");
                     if (choices == null || choices.isEmpty()) {
                         continue;
@@ -132,12 +223,24 @@ public class LlmClient {
                     if (delta != null && !delta.isEmpty() && onDelta != null) {
                         onDelta.accept(delta);
                     }
+                } catch (LlmException llmEx) {
+                    throw llmEx;
                 } catch (Exception parseEx) {
                     log.warn("解析 SSE 行失败 line={}, err={}", truncate(data, 200), parseEx.getMessage());
                 }
             }
+        } catch (LlmException llmEx) {
+            throw llmEx;
         } catch (Exception e) {
+            if (userCancelled.get()) {
+                log.info("流式请求已由用户取消");
+                return;
+            }
             throw new LlmException("读取流式响应失败: " + e.getMessage(), e);
+        } finally {
+            if (watchdog != null) {
+                watchdog.cancel(false);
+            }
         }
     }
 
@@ -150,12 +253,17 @@ public class LlmClient {
         String endpoint = buildEndpoint(settings.baseUrl);
         String payload = buildPayload("", "ping", false);
         int timeout = Math.min(settings.timeoutSeconds > 0 ? settings.timeoutSeconds : 60, 15);
+        String bearer = resolveApiKey();
+        if (bearer.isEmpty()) {
+            return new PingResult(false, -1, "API Key 未配置");
+        }
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(Duration.ofSeconds(timeout))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + nullSafe(settings.apiKey))
+                .header("Authorization", "Bearer " + bearer)
                 .header("Accept", "application/json")
+                .header("User-Agent", USER_AGENT)
                 .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                 .build();
         try {
@@ -221,28 +329,25 @@ public class LlmClient {
     }
 
     private String buildPayload(String systemPrompt, String userContent, boolean stream) {
-        List<Map<String, String>> messages = new java.util.ArrayList<>();
+        List<ChatMessage> messages = new java.util.ArrayList<>();
         if (systemPrompt != null && !systemPrompt.isBlank()) {
-            Map<String, String> sys = new LinkedHashMap<>();
-            sys.put("role", "system");
-            sys.put("content", systemPrompt);
-            messages.add(sys);
+            messages.add(new ChatMessage("system", systemPrompt));
         }
-        Map<String, String> user = new LinkedHashMap<>();
-        user.put("role", "user");
-        user.put("content", userContent == null ? "" : userContent);
-        messages.add(user);
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", settings.model);
-        body.put("messages", messages);
-        body.put("stream", stream);
-
-        return GSON.toJson(body);
+        messages.add(new ChatMessage("user", userContent == null ? "" : userContent));
+        return GSON.toJson(new ChatRequest(settings.model, messages, stream));
     }
 
-    private static String nullSafe(String s) {
-        return s == null ? "" : s;
+    /**
+     * OpenAI 兼容 chat completions 请求的最小数据模型。把原来散落的
+     * {@code Map<String, Object>} 拼装收敛到强类型 record，方便后续扩展
+     * {@code temperature}/{@code top_p}/{@code max_tokens} 等可选字段：
+     * 新增字段只需在本 record 中追加，Gson 序列化自动覆盖。
+     */
+    public record ChatMessage(String role, String content) {
+    }
+
+    /** Chat Completions request 体。{@code stream=true} 时走 SSE。 */
+    public record ChatRequest(String model, List<ChatMessage> messages, boolean stream) {
     }
 
     private static String truncate(String s, int max) {
@@ -250,5 +355,23 @@ public class LlmClient {
             return "";
         }
         return s.length() <= max ? s : s.substring(0, max) + "...";
+    }
+
+    /** 嗅探 IOException 是否是 HTTP/2 协议层问题（连接 GOAWAY / 协商失败 / 帧异常等）。 */
+    private static boolean looksLikeHttp2Issue(Throwable ex) {
+        Throwable cur = ex;
+        while (cur != null) {
+            String msg = cur.getMessage();
+            if (msg != null) {
+                String low = msg.toLowerCase(java.util.Locale.ROOT);
+                if (low.contains("http/2") || low.contains("http2")
+                        || low.contains("goaway") || low.contains("alpn")
+                        || low.contains("h2 protocol error")) {
+                    return true;
+                }
+            }
+            cur = cur.getCause();
+        }
+        return false;
     }
 }

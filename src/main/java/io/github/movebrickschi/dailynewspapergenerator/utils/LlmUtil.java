@@ -3,6 +3,7 @@ package io.github.movebrickschi.dailynewspapergenerator.utils;
 import io.github.movebrickschi.dailynewspapergenerator.config.LlmSettings;
 import io.github.movebrickschi.dailynewspapergenerator.config.SecureKeyStore;
 import io.github.movebrickschi.dailynewspapergenerator.llm.LlmClient;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,20 +39,22 @@ public final class LlmUtil {
      * @param promptOverride 提示词模板（为空则使用配置中的默认模板）
      */
     public static String polish(String content, String promptOverride) {
-        LlmSettings settings = effectiveSettings();
+        LlmSettings settings = LlmSettings.getInstance();
         String error = validate(settings);
         if (error != null) {
             return error;
         }
-        try {
-            log.info("正在调用大模型润色 model={}", settings.model);
-            String prompt = (promptOverride == null || promptOverride.isBlank())
-                    ? settings.promptTemplate : promptOverride;
-            return new LlmClient(settings).chat(prompt, content);
-        } catch (Exception e) {
-            log.error("AI润色过程出现异常", e);
-            return "AI润色异常: " + e.getMessage();
-        }
+        String prompt = (promptOverride == null || promptOverride.isBlank())
+                ? settings.promptTemplate : promptOverride;
+        return PolishCache.getOrCompute(settings.model, prompt, content, () -> {
+            try {
+                log.info("正在调用大模型润色 model={} (cache miss)", settings.model);
+                return new LlmClient(settings).chat(prompt, content);
+            } catch (Exception e) {
+                log.error("AI润色过程出现异常", e);
+                return "AI润色异常: " + e.getMessage();
+            }
+        });
     }
 
     /**
@@ -91,29 +94,23 @@ public final class LlmUtil {
     }
 
     /**
-     * 加载有效配置：把 PasswordSafe 中的 API Key 注入到一个临时副本里，避免改动持久态。
+     * @deprecated 历史 API。返回 {@link LlmSettings#getInstance()} 本身，
+     * 不再复制并写入明文 apiKey 字段（旧实现会让 API Key 长时间漂浮在 heap）。
+     * 调用方应直接使用 {@link LlmSettings#getInstance()}，API Key 由
+     * {@link LlmClient} 在发请求前一次性 {@link SecureKeyStore#loadApiKey(String)} 解码。
      */
+    @Deprecated
+    @Nullable
     public static LlmSettings effectiveSettings() {
-        LlmSettings persisted = LlmSettings.getInstance();
-        if (persisted == null) {
-            return null;
-        }
-        LlmSettings copy = new LlmSettings();
-        copy.baseUrl = persisted.baseUrl;
-        copy.model = persisted.model;
-        copy.timeoutSeconds = persisted.timeoutSeconds;
-        copy.promptTemplate = persisted.promptTemplate;
-        copy.enableStream = persisted.enableStream;
-        copy.outputDir = persisted.outputDir;
-        copy.apiKey = SecureKeyStore.loadApiKey(persisted.apiKey);
-        return copy;
+        return LlmSettings.getInstance();
     }
 
     private static String validate(LlmSettings settings) {
         if (settings == null) {
             return "AI润色失败: 无法加载配置";
         }
-        if (settings.apiKey == null || settings.apiKey.isBlank()) {
+        String key = SecureKeyStore.loadApiKey(settings.apiKey);
+        if (key == null || key.isBlank()) {
             return "AI润色失败: 未配置 API Key，请在 设置 -> 日报生成器设置 中填写";
         }
         if (settings.baseUrl == null || settings.baseUrl.isBlank()) {
