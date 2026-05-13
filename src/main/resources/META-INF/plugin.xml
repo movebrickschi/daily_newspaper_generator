@@ -24,7 +24,8 @@
         <applicationConfigurable parentId="tools"
                                  instance="io.github.movebrickschi.dailynewspapergenerator.config.LlmSettingsConfigurable"
                                  id="io.github.movebrickschi.dailynewspapergenerator.LlmSettingsConfigurable"
-                                 displayName="日报生成器设置"/>
+                                 key="settings.title"
+                                 bundle="messages.DailyReportBundle"/>
         <notificationGroup id="DailyReportGroup" displayType="BALLOON"/>
     </extensions>
     <actions>

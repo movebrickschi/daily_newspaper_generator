@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.fighting.study"
-version = "1.4.0"
+version = "1.5.0"
 
 repositories {
     mavenCentral()
@@ -25,8 +25,11 @@ dependencies {
         bundledPlugin("Git4Idea")
     }
 
-    implementation("org.slf4j:slf4j-api:2.0.9")
-    implementation("org.slf4j:slf4j-simple:2.0.9")
+    // SLF4J 由 IntelliJ Platform 提供运行时实现（slf4j-api + 内置 binding）；
+    // 插件只在编译期需要 API，不应再打包 slf4j-impl，否则会与 platform 冲突产生
+    // "Class path contains multiple SLF4J bindings" 警告。
+    compileOnly("org.slf4j:slf4j-api:2.0.9")
+    testRuntimeOnly("org.slf4j:slf4j-simple:2.0.9")
     testImplementation("junit:junit:4.13.2")
 }
 
@@ -38,6 +41,37 @@ intellijPlatform {
         }
         // 设置插件的变更说明
         changeNotes = """
+            <h3>1.5.0</h3>
+            English:
+            <ul>
+                <li><b>Git integration via Git4Idea API</b>: reuses IDE-configured git path / auth / cancellation</li>
+                <li><b>Multi-repo parallel extraction</b>: 8-way concurrent extraction for monorepo, with cancellable progress</li>
+                <li><b>HTTP/2 with HTTP/1.1 fallback</b> for LLM calls; configurable timeout via JVM system properties</li>
+                <li><b>Polish result cache</b> (sha256 + LRU): repeated repolishes of same content skip the LLM call</li>
+                <li><b>Hardened credentials</b>: API Key no longer drifts in heap; test-connection no longer silently writes to PasswordSafe; AccessTokenCache hashes secrets</li>
+                <li><b>Better Feishu rendering</b>: blockquote / hr / h3+ adapted to Feishu interactive card markdown subset</li>
+                <li><b>Copy as HTML + Markdown</b>: clipboard exposes both flavors for Word / Outlook / browser editors</li>
+                <li><b>Export filename adds minute timestamp</b>; settings changes auto-refresh open report dialogs via MessageBus</li>
+                <li><b>ReportDialog refactor</b>: extracted ReportButtonFactory / ReportPushHelper; new ReportDialogs entry (V2 deprecated)</li>
+                <li><b>MarkdownEngine plug point</b> for future commonmark / flexmark / IntelliJ markdown backend</li>
+                <li><b>CI workflow</b> + plugin verifier configuration; 21 new JUnit tests</li>
+            </ul>
+
+            中文:
+            <ul>
+                <li><b>Git 集成升级到 IntelliJ Git4Idea API</b>：复用 IDE 配置的 git 路径、认证与取消机制</li>
+                <li><b>多仓库并发抽取</b>：monorepo 抽取改为 8 路并发，受 IDE 进度条接管可随时取消</li>
+                <li><b>LLM 请求 HTTP/2 + HTTP/1.1 自动降级</b>；超时可通过 JVM 系统属性配置</li>
+                <li><b>润色结果缓存</b>（sha256 + LRU）：相同 model + prompt + content 命中即跳过 LLM 调用，节省 token</li>
+                <li><b>凭证安全加固</b>：API Key 不再在堆中长期漂浮；测试连接不再悄悄把临时输入写入 PasswordSafe；AccessTokenCache 用 sha256 哈希 secret 作 key</li>
+                <li><b>飞书 markdown 适配</b>：自动把 blockquote / hr / h3+ 转换为飞书 interactive 卡片支持的子集</li>
+                <li><b>复制即同时塞 markdown + HTML</b>：在 Word / Outlook / 浏览器编辑器中粘贴自动得到富文本</li>
+                <li><b>导出文件名加分钟级时间戳</b>；设置保存后已打开的报告对话框通过 MessageBus 自动刷新</li>
+                <li><b>ReportDialog 拆分</b>：抽出 ReportButtonFactory / ReportPushHelper；新入口 ReportDialogs（V2 deprecated）</li>
+                <li><b>MarkdownEngine 抽象</b>，未来可接入 commonmark / flexmark / IntelliJ 自带 markdown</li>
+                <li><b>新增 GitHub Actions CI</b> + plugin verifier 配置；21 个新 JUnit 测试</li>
+            </ul>
+
             <h3>1.4.0</h3>
             English:
             <ul>
@@ -82,6 +116,25 @@ intellijPlatform {
                 <li>「今日提交记录 / 生成今日日报」支持 IDEA 项目下挂载的多个 Git 仓库，默认聚合所有仓库并按「仓库 → 当前分支」两级分组输出</li>
             </ul>
         """.trimIndent()
+    }
+
+    // 插件兼容性 verifier：CI 配套使用，提前发现使用了 since-build 之后版本中
+    // 已 deprecated / removed 的 API。
+    //
+    // 显式锁定 since-build 起点 + 当前调试版本两个 IDE release，避免 recommended() 抓到
+    // 仓库里尚未发布的 EAP 而失败。
+    //
+    // failureLevel 仅在结构性问题（INVALID_PLUGIN）时 fail —— COMPATIBILITY_PROBLEMS
+    // 经常因网络无法解析其它 plugin 依赖（plugins.jetbrains.com 不可达）而误报，
+    // 通过 report 文件人工审阅即可。
+    pluginVerification {
+        ides {
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, "2024.2.0.2")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, "2025.2.2")
+        }
+        failureLevel = listOf(
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INVALID_PLUGIN
+        )
     }
 }
 
